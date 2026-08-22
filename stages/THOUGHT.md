@@ -1,0 +1,101 @@
+# 训练思考记录
+
+> 本文件记录我们的阶段实训思考（与 `docs/THOUGHT.md` 课程资料分离）。
+
+## Stage 01：工程骨架（设计复盘与手写待办）
+
+### 本阶段目标
+
+- 从文档规格出发建立可维护的 Go 服务骨架：配置、健康检查、依赖检查、优雅关闭。
+- 设计依据：`docs/implementation/spec/01-environment.md` 与 `docs/stages/stage-01-skeleton.md`。
+
+### 设计方案
+
+- 目录按约定分层：`pkg`（可复用：envloader/configutil）、`internal`（业务私有：deps/controller）、`cmd/pilot`（组装根）。
+- 入口编排：`envloader.Load(.env)` → `configutil.Load()` → `deps.CheckAll`（失败即退出）→ 注册路由 → `ListenAndServe` → 信号优雅关闭。
+- 健康检查语义：`/live` 只证明进程存在；`/ready` 逐项报告 Redis/MySQL/ES；任一失败 503。
+- 错误策略：核心依赖启动期强检查，错误只含依赖名，不泄露密码或完整 DSN。
+
+### 字段建模评审（Config 配置结构）
+
+总分：87/100（补评：编码前未按流程先让学习者提交字段设计，本轮补录）
+
+| 维度 | 得分 | 评价 |
+| --- | ---: | --- |
+| 业务完整性 | 18/20 | 覆盖 `.env.example` 全部字段、分组合理；扣 2：`App.APIKey` 与 `LLM.APIKey` 语义相近易混 |
+| 类型准确性 | 17/20 | bool/duration/int 用对；扣 3：TTL/Window 经 `ParseDuration` 失败时静默回退默认值，缺显式报错 |
+| 约束与可空性 | 13/15 | 缺 `Validate()`（addr 非空、`EMBEDDING_DIM>0`、DSN 非空）；扣 2 |
+| 查询与索引意识 | 14/15 | 本阶段无查询，折算为"默认值/降级意识"：默认值与 spec 一致；扣 1：`ALLOW_DEGRADED` 尚未被代码消费 |
+| 状态与生命周期 | 8/10 | `Load()` 返回不可变值、无 setter；扣 2：无"必填/可缺省"显式标记 |
+| 命名与可读性 | 9/10 | 字段名与 env key 一一对应；扣 1：`OTLPExportEndpoint` 略冗余 |
+| 扩展与演进 | 8/10 | 分组结构利于 Stage 02+ 叠加；扣 2：无版本/来源标记 |
+
+第一版主要问题：
+- 配置解析错误（非法数字/时长）被静默吞掉，回退默认值，排障时会困惑。
+- `ALLOW_DEGRADED` 只定义了语义，代码未消费（观测依赖降级留给 Stage 06）。
+
+改进方向（学习者可选做）：
+- 给 `configutil` 加 `Validate()`，错误显式返回而不是静默回退。
+
+### 模块拆分理由
+
+- `pkg/envloader`：只做"文件 → 环境变量"，无业务、可复用、可单测。
+- `pkg/configutil`：纯映射（env → 结构），无 IO 无状态，是"配置单一来源"心智的落点。
+- `internal/deps`：失败边界。负责聚合检查与错误净化，S 级核心。
+- `internal/controller`：HTTP 契约层，健康检查 + 统一错误体。
+- `cmd/pilot/main.go`：组装根（bootstrap），只做编排，不含业务。
+
+### 数据流链路
+
+1. 入口：`go run ./cmd/pilot` → `envloader.Load(".env")`（缺失静默）。
+2. 校验：`configutil.Load()` 兜底默认值；强校验缺失（见局限）。
+3. 业务处理：启动期 `deps.CheckAll`（redis PING / mysql PingContext / es HTTP GET），10s 超时聚合。
+4. 存储/外部调用：三依赖仅连通性探测，无业务读写。
+5. 返回/副作用：HTTP `:8080`；`/live` 200；`/ready` 200/503。
+6. 失败路径：核心依赖 down → 聚合错误（只含依赖名）→ exit 1；运行期 down → `/ready` 503；信号 → Shutdown 10s 宽限。
+
+### 代码分级
+
+| 模块/函数 | 等级 | 原因 | 学习者动作 |
+| --- | --- | --- | --- |
+| `cmd/pilot` 优雅关闭 | S | 生命周期边界，错则丢请求/泄漏 | 路线B：删除参考实现重写 |
+| `internal/deps` CheckAll + 错误净化 | S | 失败聚合 + 凭据安全 | 路线B：删除参考实现重写 |
+| `internal/controller` Ready + 错误映射 | S | 对外契约 | 路线B：删除参考实现重写 |
+| `pkg/configutil` Config 结构 | A | DTO/配置结构 | 重构 + 补字段选型理由 + 可选 Validate |
+| `pkg/envloader` | A | 配置加载 | 已沉淀拆解文档（`stage-01/`），能讲清即可保留 |
+| `internal/controller` Live/WriteError | B | 简单脚手架 | 读懂复用 |
+| Makefile / compose / `.env.example` | B | 环境脚手架 | 读懂复用 |
+
+### 设计模式取舍
+
+- 手动注入（`NewHealth(checkers)`）：采用。收益：controller 可测；代价：无容器，装配在 main 手写，Stage 02+ 依赖变多时再评估。
+- 函数字段替代接口（`Dependency{Name, Check func}`）：采用。收益：构造与测试简单；代价：无状态、扩展性弱，接入正式 client 后再抽接口。
+- 第三方 router/logger：不采用。`net/http` ServeMux + `slog` 满足阶段目标；观测中间件阶段再评估。
+
+### 踩坑与边界
+
+- MySQL driver 必须 blank import，否则 `sql.Open` 报 unknown driver（曾把 open 错误误判为 invalid DSN）。
+- mysql driver 的 open 错误可能含 DSN 字符串 → 必须掩码。
+- go-redis 默认 logger 在依赖不可用时刷屏 → 用 `silentLogger` 抑制。
+- Shutdown 不能用被信号取消的 ctx（会立即超时失效）。
+- 本机已有 mysqld 占用 3306，`compose up` 前需处理端口冲突。
+
+### 复盘思考题（学习者回答）
+
+1. 这条数据流从入口到返回经历了哪些层？
+2. 哪段逻辑是 S 级？为什么必须手写？
+3. 配置字段的类型（duration/bool/int/string）你为什么这么选？
+4. 哪些配置影响启动成败？哪些可以缺省？
+5. 当前设计最大局限是什么？
+6. 如果 `/ready` 请求变多，哪里最先出问题（每请求 3s 串行 ping 三依赖）？
+7. 面试官问"为什么这样分层（pkg/internal/cmd）"，你怎么回答？
+
+（S 级手写完成后在此补充回答，见 `stage-01/s-level-handwriting-guide.md`）
+
+### 面试口述素材（待填写）
+
+- 项目背景：
+- 我的职责：
+- 核心难点：
+- 方案取舍：
+- 结果与优化：
