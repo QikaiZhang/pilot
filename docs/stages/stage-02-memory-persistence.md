@@ -6,13 +6,13 @@
 
 ## 核心数据流
 
-1. 请求带 `conversation_id` 进入。
-2. 从 Redis 读取最近 N 条消息。
-3. 生成回复后将用户消息和助手消息写回 Redis，并设置 TTL。
-4. 通过 MySQL 事务保存长期历史和元数据。
-5. Redis 不可用时明确选择：阻断、降级为空上下文，或只读 MySQL；记录取舍。
+1. 请求携带 `user_id` 和 `session_id` 进入 Service。
+2. Service 先从 Redis 读取最近 N 条消息。
+3. Redis 未命中时回源 MySQL，读取成功后尝试回填 Redis。
+4. 生成回复后，Service 先将消息批量写入 MySQL，再更新 Redis 窗口。
+5. Redis 更新失败不撤销已成功的 MySQL 写入，记录告警并保留后续补偿空间。
 
-历史查询也应有清晰的回退顺序：优先 MySQL，必要时再读 Redis 窗口；不能把 Redis 当作永久事实来源。Redis 删除使用按模式扫描和分片锁，避免阻塞整个实例。
+历史查询和近期上下文是两个不同用例：近期上下文优先 Redis，完整历史使用 MySQL。Redis 只保存一个会话 key 下的独立消息 List，不是永久事实来源。
 
 ## 手写/AI 边界
 

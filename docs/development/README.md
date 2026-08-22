@@ -1,10 +1,11 @@
 # 开发文档
 
-阅读顺序：
+本目录面向“把代码写出来并能运行”的开发过程：
 
 1. [project-contract.md](project-contract.md)：先确定学习范围和手写边界。
 2. 本页：再确定目录、分支和本地开发规则。
-3. [实现规格](../implementation/spec/README.md)：最后准备可运行环境和数据契约。
+3. [实现规格](../implementation/spec/README.md)：准备可运行环境和数据契约。
+4. 开发完成后，再到 [阶段规格](../stages/README.md) 和根目录 `stages/` 做复盘，不把学习笔记混入实现约定。
 
 ## 1. 开发原则
 
@@ -32,6 +33,8 @@ web/             极简前端工作台，由 Go 直接托管
 ## 3. 分支和阶段
 
 `main` 只保存已验收版本；每阶段从上一阶段分支创建 `stage/XX-name`。阶段完成要更新 `CHANGELOG.md`、`THOUGHT.md`，运行测试并做一次口述验收。
+
+实际训练记录位于根目录 `stages/`；`docs/stages/` 只描述阶段目标和验收标准。
 
 ## 4. 本地启动约定
 

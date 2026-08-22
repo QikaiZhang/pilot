@@ -18,7 +18,7 @@
 
 - `cmd/main.go`（HelloWorld）迁移为 `cmd/pilot/main.go` 正式入口。
 - `go.mod` 增加 `go-redis/v9`、`go-sql-driver/mysql` 依赖。
-- `docs/CHANGELOG.md`、`docs/THOUGHT.md` 还原为原始课程资料，本目录独立记录实训进展。
+- `docs/` 保留项目开发规格与课程参考；本目录独立记录本次实训进展，避免把学习过程混入开发契约。
 
 ### 数据流变化
 
@@ -43,3 +43,37 @@
 - 测试结果：envloader / configutil / controller 单测通过，`go test ./...` 绿。
 - S级手写确认：待学习者完成（路线 B，见 `stage-01/s-level-handwriting-guide.md`）。
 - Review 结论：设计复盘与字段建模评分已写入 `THOUGHT.md`；S 级手写后做 Diff Review 与口述验收。
+
+## Stage 02：记忆与持久化（核心实现完成）
+
+### 新增能力
+
+- 新增 `internal/memory` 的消息模型、存储端口、MySQL 历史存储和 Redis 短期记忆。
+- 新增 `memory.Service`，协调 Redis 缓存命中/回源和 MySQL 优先写入。
+- 新增 sqlc schema、queries 和生成代码，表结构与消息字段保持明确映射。
+
+### 改动范围
+
+- `internal/memory/mysql.go`：批量消息事务写入、历史查询、删除和 `CreatedAt` 零值处理。
+- `internal/memory/redis.go`：会话 key 编码、List 窗口、TTL、批次校验和清理。
+- `internal/memory/service.go`：`LoadRecent`、`SaveMessages` 和缓存失败告警。
+- `internal/memory/*_test.go`：模型、适配器边界和 Service fake store 测试。
+
+### 数据流变化
+
+- 读取：Redis 命中直接返回；未命中回源 MySQL，成功后尝试回填 Redis。
+- 写入：校验消息批次 → MySQL 持久化 → Redis 更新近期窗口。
+- 失败：MySQL 失败阻断写入；Redis 失败不撤销 MySQL，保留告警和后续补偿空间。
+
+### 当前局限
+
+- 尚未接入聊天 Controller，Service 还没有真实 HTTP 调用链。
+- 尚未完成 Compose 环境下的 MySQL/Redis 集成测试。
+- 同一会话并发写入的严格顺序和补偿机制留到后续阶段。
+
+### 验收结果
+
+- 代码运行：`go test ./...` 通过。
+- 测试结果：Service fake store 覆盖命中、回源、错误和缓存失败策略。
+- S 级手写确认：Service 核心路径已完成 Review，需在阶段口述验收中确认理解。
+- Review 结论：核心持久化链路可进入 Stage 03；集成验证作为后续补强项。

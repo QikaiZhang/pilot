@@ -1,6 +1,17 @@
 # Pilot 学习型项目文档
 
-这组文档把飞书中的 Pilot 磐石项目课件改造成一套适合当前基础的 Go 后端训练路线。目标是通过一条可运行的数据流熟悉 Go 项目开发过程，再逐步加入 Redis、MySQL、Elasticsearch、Agent、可观测性和微服务边界。
+这组文档是 Pilot 的项目说明、开发规格和学习入口。目标是通过一条可运行的数据流熟悉 Go 项目开发过程，再逐步加入 Redis、MySQL、Elasticsearch、Agent、可观测性和微服务边界。
+
+## 文档分工
+
+项目文档分成两条轨道，但不复制同一份内容：
+
+| 轨道 | 路径 | 用途 |
+| --- | --- | --- |
+| 开发文档 | `docs/development/`、`docs/architecture/`、`docs/api/`、`docs/implementation/`、`docs/testing/` | 当前代码的结构、契约、数据模型、运行和测试依据 |
+| 学习文档 | `docs/stages/`、`docs/interview/`、`stages/` | 阶段目标、训练记录、复盘问题、面试表达和验收证据 |
+
+其中，`docs/stages/` 描述“阶段应该做什么”，`stages/` 记录“这次实际做了什么”。根目录 `README.md` 只保留系统全览和快速入口；`源代码/` 是本地参考资料，已被 Git 忽略，不属于当前实现。
 
 ## 01. 推荐阅读顺序
 
@@ -24,14 +35,14 @@
 | 目录 | 用途 |
 | --- | --- |
 | [development](development/README.md) | 开发约定、目录职责、AI 协作规则 |
-| [stages](stages/README.md) | 分阶段计划、每阶段产出和验收门槛 |
+| [stages 规格](stages/README.md) | 分阶段目标、实现顺序和验收门槛 |
 | [architecture](architecture/README.md) | 系统架构、数据流、中间件职责 |
 | [api](api/README.md) | API 设计和联调清单 |
 | [implementation](implementation/README.md) | 手写/AI 边界、提示词和代码分级 |
 | [testing](testing/README.md) | 测试策略、测试分层和故障演练 |
 | [interview](interview/README.md) | 面试沉淀和口述训练 |
 | [glossary](glossary/README.md) | 中间件、ES、RAG 等概念解释 |
-| [训练契约](development/project-contract.md) | 只通过文档完成项目的学习规则 |
+| [训练契约](development/project-contract.md) | 项目范围、手写边界和学习规则 |
 | [重复逻辑练习台](implementation/repetition-lab.md) | 每类重复代码至少手写一个样例 |
 | [可施工规格](implementation/spec/README.md) | 删除源码后仍可执行的环境、数据、API 和 Mock 规格 |
 
@@ -64,4 +75,4 @@
 
 ## 使用方式
 
-每进入一个阶段，先阅读阶段文档，完成设计问题，再开始编码。阶段未通过验收时，不扩展下一层技术。每个阶段都应留下代码、测试、设计取舍和面试口述素材。
+每进入一个阶段，先阅读对应的开发规格和阶段文档，完成设计问题，再开始编码。阶段未通过验收时，不扩展下一层技术。实际进展统一记录在 `stages/CHANGELOG.md`、`stages/THOUGHT.md` 和对应的 `stages/stage-XX/` 中。

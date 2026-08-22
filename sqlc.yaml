@@ -1,0 +1,12 @@
+version: "2"
+
+sql:
+  - engine: "mysql"
+    schema: "db/schema.sql"
+    queries: "db/queries.sql"
+    gen:
+      go:
+        package: "memorydb"
+        out: "internal/memorydb"
+        sql_package: "database/sql"
+        emit_interface: true

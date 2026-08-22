@@ -80,6 +80,75 @@
 - Shutdown 不能用被信号取消的 ctx（会立即超时失效）。
 - 本机已有 mysqld 占用 3306，`compose up` 前需处理端口冲突。
 
+## Stage 02：Redis 短期记忆与 MySQL 历史（当前思考）
+
+### 当前设计
+
+- `user_id + session_id` 标识一个会话。
+- MySQL 保存每条消息的一行，是完整历史的事实来源。
+- Redis 使用一个会话 key 对应一个 List；List 中每个元素是独立 JSON 消息，不是把整段历史序列化成一个数组值。
+- `limit` 保留最新消息窗口，`ttl` 控制窗口过期时间。
+- `recentMemoryKey` 只构造会话容器地址，不包含消息内容；消息内容保存在该 key 对应的 List 中。
+
+### Redis 写入时序
+
+```text
+校验整批消息
+  -> 确认 user_id/session_id 一致
+  -> 补 CreatedAt 并 JSON 序列化
+  -> MULTI/EXEC
+       -> RPUSH 批量追加
+       -> LTRIM 保留最新 N 条
+       -> EXPIRE 刷新 TTL
+```
+
+Redis 的 `MULTI/EXEC` 不是 MySQL 式的失败回滚事务。这里的目的，是让追加、裁剪和 TTL 刷新作为一个 Redis 命令批次执行，避免其他请求看到中间状态；命令参数应在进入事务前全部校验和序列化。
+
+### Context 边界
+
+- HTTP 控制层或 service 层拥有请求生命周期，负责把 `r.Context()` 传入存储层。
+- Redis/MySQL adapter 不创建脱离请求的 `context.Background()`，否则客户端断开后底层操作仍可能继续。
+- 存储层只有在需要更短的本地超时时，才基于传入 ctx 使用 `context.WithTimeout`，并负责 `cancel()`；不能覆盖调用方更早的取消信号。
+- 后台补偿或异步重建窗口是另一条生命周期，不能复用已结束的请求 ctx，应在明确的 worker 生命周期中创建新的 ctx。
+
+### Service 协调层
+
+- 文件位于 `internal/memory/service.go`，继续使用 `package memory`；当前没有必要拆出 `internal/memory/service/` 子包。
+- `Service` 只依赖 `HistoryStore` 和 `RecentMemory`，不直接依赖 SQL 或 Redis 客户端。
+- `LoadRecent` 的顺序是 Redis 命中直接返回；空结果回源 MySQL；MySQL 有结果时尝试回填 Redis。
+- `SaveMessages` 先写 MySQL，再写 Redis。MySQL 是持久事实来源，Redis 更新失败只记录告警，不撤销已成功的持久化。
+- `user_id` 和 `session_id` 是显式业务参数，不放进 `context.Context`；Context 只负责取消、超时和请求范围生命周期。
+
+### Service 数据流
+
+```text
+Controller / 上层用例
+  -> Service.LoadRecent
+     -> Redis 命中：返回
+     -> Redis 未命中：MySQL.List -> 尝试 Redis.Append 回填
+
+Controller / 上层用例
+  -> Service.SaveMessages
+     -> 校验整批消息
+     -> MySQL.Append
+     -> Redis.Append
+```
+
+### 代码分级补充
+
+| 模块/函数 | 等级 | 学习者动作 |
+| --- | --- | --- |
+| `memory.Service.LoadRecent` | S | 能解释缓存命中、回源、回填和失败策略 |
+| `memory.Service.SaveMessages` | S | 能解释持久化优先级、批次校验和缓存失败边界 |
+| `fakeHistoryStore` / `fakeRecentMemory` | A | 阅读测试替身，能自己增加边界用例 |
+
+### 已完成测试与剩余问题
+
+- 已完成：Redis key 隔离、批次会话一致性、Service 缓存命中/回源、MySQL 失败阻断 Redis、Redis 失败不影响历史返回。
+- 已完成：MySQL 事务写入、Redis List 窗口裁剪、TTL 刷新和零值 `CreatedAt` 处理。
+- 待补：真实 MySQL/Redis Compose 集成验证，以及同一会话并发写入时的顺序策略。
+- 需要决定 Stage 03 流式响应中 user 与 assistant 是否分两次追加；这不应强行要求和同步请求一样的批量边界。
+
 ### 复盘思考题（学习者回答）
 
 1. 这条数据流从入口到返回经历了哪些层？
@@ -89,6 +158,8 @@
 5. 当前设计最大局限是什么？
 6. 如果 `/ready` 请求变多，哪里最先出问题（每请求 3s 串行 ping 三依赖）？
 7. 面试官问"为什么这样分层（pkg/internal/cmd）"，你怎么回答？
+8. 为什么 `SaveMessages` 先写 MySQL 再写 Redis？如果 Redis 失败，为什么不返回整个请求失败？
+9. 哪些地方应该透传 `context.Context`，哪些地方才需要创建新的 Context？
 
 （S 级手写完成后在此补充回答，见 `stage-01/s-level-handwriting-guide.md`）
 
