@@ -11,8 +11,8 @@
 
 ## 交付物
 
-- `docs/architecture/`：系统设计和取舍。
-- `docs/api/`：接口契约和错误码。
-- `docs/testing/`：测试和故障演练记录。
-- `docs/interview/`：问答手册和个人回答。
+- `docs/build/architecture/`：系统设计和取舍。
+- `docs/build/api/`：接口契约和错误码。
+- `docs/build/testing/`：测试和故障演练记录。
+- `docs/review/interview/`：问答手册和个人回答。
 - 每阶段的 `CHANGELOG.md`、`THOUGHT.md` 和阶段验收记录。

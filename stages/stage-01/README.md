@@ -21,7 +21,7 @@
 
 再补两块：缺陷总结、极简对比版。
 
-## 本阶段高价值清单（对应 `docs/stages/stage-01-skeleton.md` 的 S 级）
+## 本阶段高价值清单（对应 `docs/build/stages/stage-01-skeleton.md` 的 S 级）
 
 - [x] `pkg/envloader`：`.env` 读取与「已有环境变量优先」的优先级规则（本目录已沉淀）
 - [ ] `internal/deps`：依赖检查失败聚合 + 错误净化（不泄露 DSN/密码）

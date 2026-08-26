@@ -32,9 +32,9 @@ web/             极简前端工作台，由 Go 直接托管
 
 ## 3. 分支和阶段
 
-`main` 只保存已验收版本；每阶段从上一阶段分支创建 `stage/XX-name`。阶段完成要更新 `CHANGELOG.md`、`THOUGHT.md`，运行测试并做一次口述验收。
+`main` 只保存已验收版本；每阶段从上一阶段分支创建 `stage/XX-name`。阶段完成要更新 `history/CHANGELOG.md`、`review/THOUGHT.md`，运行测试并做一次口述验收。
 
-实际训练记录位于根目录 `stages/`；`docs/stages/` 只描述阶段目标和验收标准。
+实际训练记录位于根目录 `stages/`；`build/stages/` 只描述阶段目标和验收标准。
 
 ## 4. 本地启动约定
 

@@ -11,6 +11,7 @@ var allKeys = []string{
 	"MYSQL_DSN",
 	"ES_URL", "ES_USERNAME", "ES_PASSWORD", "ES_KNOWLEDGE_INDEX", "ES_LOG_INDEX",
 	"LLM_MODE", "LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL",
+	"LLM_TEMPERATURE", "LLM_MAX_TOKENS", "LLM_TIMEOUT",
 	"EMBEDDING_MODE", "EMBEDDING_DIM",
 	"RATE_LIMIT_REQUESTS", "RATE_LIMIT_WINDOW",
 	"OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -54,6 +55,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LLM.Mode != "mock" {
 		t.Errorf("LLM.Mode = %q, want mock", cfg.LLM.Mode)
 	}
+	if cfg.LLM.Temperature != 0 || cfg.LLM.MaxTokens != 0 || cfg.LLM.Timeout != 0 {
+		t.Errorf("LLM defaults = %+v, want zero values", cfg.LLM)
+	}
 	if cfg.Embedding.Dim != 32 {
 		t.Errorf("Embedding.Dim = %d, want 32", cfg.Embedding.Dim)
 	}
@@ -72,6 +76,9 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("REDIS_MEMORY_TTL", "1h")
 	t.Setenv("ALLOW_DEGRADED", "false")
 	t.Setenv("EMBEDDING_DIM", "64")
+	t.Setenv("LLM_TEMPERATURE", "0.7")
+	t.Setenv("LLM_MAX_TOKENS", "128")
+	t.Setenv("LLM_TIMEOUT", "30s")
 
 	cfg := Load()
 	if cfg.App.Addr != ":9999" {
@@ -88,5 +95,8 @@ func TestLoadFromEnv(t *testing.T) {
 	}
 	if cfg.Embedding.Dim != 64 {
 		t.Errorf("Embedding.Dim = %d, want 64", cfg.Embedding.Dim)
+	}
+	if cfg.LLM.Temperature != 0.7 || cfg.LLM.MaxTokens != 128 || cfg.LLM.Timeout != time.Minute/2 {
+		t.Errorf("LLM env = %+v, want temp 0.7, tokens 128, timeout 30s", cfg.LLM)
 	}
 }

@@ -4,7 +4,7 @@
 
 1. 本页的 2 分钟项目介绍模板。
 2. [thought-questions.md](thought-questions.md) 的分组思考题。
-3. 每完成一个阶段，把自己的答案和测试证据补回本页或 `THOUGHT.md`。
+3. 每完成一个阶段，把自己的答案和测试证据补回本页或 `../THOUGHT.md`。
 
 开发过程中的分组思考题见 [thought-questions.md](thought-questions.md)。每阶段至少沉淀一个“设计取舍 + 失败路径 + 测试证据”，再整理成口述答案。
 

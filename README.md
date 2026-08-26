@@ -51,7 +51,7 @@ make compose-up # 启动 Redis/MySQL/Elasticsearch 等依赖
 make health     # 检查 live/ready 接口
 ```
 
-依赖配置可放入本地 `.env`，不要提交真实密钥或连接凭据。建议先阅读 [开发文档](docs/development/README.md)，再查看 [可施工规格](docs/implementation/spec/README.md) 和 [阶段路线](docs/stages/README.md)。
+依赖配置可放入本地 `.env`，不要提交真实密钥或连接凭据。建议先阅读 [开发文档](docs/build/development/README.md)，再查看 [可施工规格](docs/build/implementation/spec/README.md) 和 [阶段路线](docs/build/stages/README.md)。
 
 ## 当前学习路线
 

@@ -4,18 +4,20 @@
 
 ```sql
 CREATE TABLE conversation_history (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  message_id VARCHAR(128) NOT NULL,
   user_id VARCHAR(128) NOT NULL,
   session_id VARCHAR(128) NOT NULL,
   role VARCHAR(16) NOT NULL,
   content LONGTEXT NOT NULL,
   metadata JSON NULL,
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_history_message (user_id, session_id, message_id),
   KEY idx_history_session_created (user_id, session_id, created_at, id)
 );
 ```
 
-`role` 只允许 `user`、`assistant`、`system`、`tool`。历史查询按 `created_at, id` 升序返回，删除必须同时要求 `user_id` 和 `session_id`，防止误删其他会话。
+`id` 是数据库内部主键；`message_id` 是请求级幂等键，在同一用户和会话中唯一。`role` 只允许 `user`、`assistant`、`system`、`tool`。历史查询按 `created_at, id` 升序返回，删除必须同时要求 `user_id` 和 `session_id`，防止误删其他会话。
 
 ## MySQL：episodic_incidents
 

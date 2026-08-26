@@ -46,9 +46,9 @@
 
 ```text
 Content-Type: text/event-stream
-data: {"delta":"你好"}\n\n
-data: {"delta":"，世界"}\n\n
-data: [DONE]\n\n
+data: {"type":"content","content":"你好"}\n\n
+data: {"type":"content","content":"，世界"}\n\n
+data: {"type":"done","usage":{"input_tokens":12,"output_tokens":4}}\n\n
 ```
 
-流错误使用 `data: {"error":{"code":"UPSTREAM_ERROR","message":"..."}}`，随后关闭连接。客户端断开必须取消同一个 `context.Context`。
+流错误使用 `data: {"type":"error","error":{"code":"UPSTREAM_ERROR","message":"..."}}`，随后关闭连接。客户端断开必须取消同一个 `context.Context`。

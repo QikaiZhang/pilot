@@ -1,13 +1,13 @@
 # 训练思考记录
 
-> 本文件记录我们的阶段实训思考（与 `docs/THOUGHT.md` 课程资料分离）。
+> 本文件记录我们的阶段实训思考（与 `docs/review/THOUGHT.md` 课程资料分离）。
 
 ## Stage 01：工程骨架（设计复盘与手写待办）
 
 ### 本阶段目标
 
 - 从文档规格出发建立可维护的 Go 服务骨架：配置、健康检查、依赖检查、优雅关闭。
-- 设计依据：`docs/implementation/spec/01-environment.md` 与 `docs/stages/stage-01-skeleton.md`。
+- 设计依据：`docs/build/implementation/spec/01-environment.md` 与 `docs/build/stages/stage-01-skeleton.md`。
 
 ### 设计方案
 
