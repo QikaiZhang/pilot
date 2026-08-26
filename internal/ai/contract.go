@@ -85,3 +85,30 @@ func IsRoleValid(r string) error {
 	}
 	return errors.New("role is invalid")
 }
+
+// Chunk 是检索返回的一个文档片段，来自知识库切分。
+// DocID 标识源文档，ChunkID 唯一标识片段；其余字段用于精确过滤与追溯。
+type Chunk struct {
+	DocID    string   `json:"doc_id"`
+	ChunkID  string   `json:"chunk_id"`
+	Title    string   `json:"title"`
+	Content  string   `json:"content"`
+	Source   string   `json:"source,omitempty"`
+	Category string   `json:"category,omitempty"`
+	Tags     []string `json:"tags,omitempty"`
+	Version  int      `json:"version,omitempty"`
+	Score    float64  `json:"score"`
+}
+
+// Embedder 把文本编码为定长向量。索引侧与查询侧必须使用同一个 Embedder，
+// 否则向量维度或语义不一致，检索失效。
+type Embedder interface {
+	Embed(ctx context.Context, text string) ([]float32, error)
+	Dim() int
+}
+
+// Retriever 对单个 query 做混合召回（关键词 + 向量），并返回按相关度降序的片段。
+// 空召回返回空切片而非 error；只有 ES 不可用、超时或 Embedding 失败才返回 error。
+type Retriever interface {
+	Retrieve(ctx context.Context, query string, topK int) ([]Chunk, error)
+}

@@ -181,6 +181,53 @@
 - 全量 `go test ./...` 通过（7 ok）；`git diff --check` 干净；全部 `.md` 相对链接校验通过。
 - 结构：`docs/` 顶层仅 `build/`、`review/`、`history/` 与 `README.md`，符合「施工 / 复习 / 历史」三分。
 
+## Stage 04：ES 与 RAG 检索链路（基础完成）
+
+### 新增能力
+
+- 新增 `spec/07-rag.md`：Embedder/Chunk/Retriever 自有接口契约、RRF 融合规则、失败策略与验证要求。
+- 新增 `ai` 自有契约：`Chunk`、`Embedder`、`Retriever`（与 ChatModel 同构，不暴露供应商类型）。
+- 新增 `internal/ai/embedder`：确定性 Mock Embedder（稳定 hash + 归一化，维度 = EMBEDDING_DIM），用于打通索引/召回/RRF，不依赖真实模型。
+- 新增 `internal/ai/retriever`：
+  - `fuseRRF`：跨来源（BM25 + kNN）按排名融合去重，k=60，纯函数 S 级手写。
+  - `ESStore`：client 初始化、ensure index + mapping（dims=32 cosine）、单个 chunk 索引。
+  - `ESRetriever`：实现 `ai.Retriever`，BM25 全文 + dense_vector kNN 两路召回后 RRF 融合。
+- 新增 `internal/ai/tools`：`knowledge_search` 工具骨架（入参 query/top_k/category，出参结构化 Chunk），为 Stage 05 Agent 铺路。
+- 新增 `internal/ai/prompt`：把命中 Chunk 组装成带来源标注的引用块，供注入 system 消息。
+- 引入 `github.com/elastic/go-elasticsearch/v8` v8.19.7。
+
+### 改动范围
+
+- `internal/ai/contract.go`：追加 RAG 契约。
+- `docs/build/implementation/spec/README.md`：追加 `07-rag.md` 索引。
+- 新增：`internal/ai/{embedder,retriever,prompt,tools}` 共 8 个 `.go` 文件 + 测试；`docs/build/implementation/spec/07-rag.md`。
+
+### 数据流变化
+
+- 写入：`Chunk 切分 -> Embedder.Embed -> ESStore.Index -> ES pilot_knowledge`。
+- 查询：`user query -> Embedder.Embed -> searchBM25 + searchKNN -> fuseRRF -> 按分降序 Top-K`。
+- 注入：`命中 Chunk -> prompt.BuildKnowledgeContext -> 注入 system 消息`。
+- 工具：`Agent 调用 KnowledgeSearch.Execute -> Retriever.Retrieve -> 结构化结果`。
+
+### 当前局限
+
+- RAG 模块已实现并自测通过，但**尚未接入聊天/组合根**（chat 链路不消费检索）；待 Stage 05 Agent 接入。
+- `knowledge_search` 已实现 `ai.Tool` 接口，但 `ESRetriever`/`KnowledgeSearch` 未在 `wiring.go` 组装（Stage 05 才接）。
+- 真实 Embedding 模型未接入（当前 mock，`EMBEDDING_MODE=mock`）。
+- 集成测试需真 ES，用 `//go:build integration` 隔离，默认 `go test ./...` 不含。
+
+### 验收结果
+
+- 代码：`go test ./...` 全绿；`go vet ./...` 干净；`git diff --check` 干净；`make tidy` 通过。
+- 集成（`make infra-up` 起本地 ES + `-tags integration`）：建索引 -> 写 2 文档 -> 检索 "MySQL 主从复制怎么做" -> 命中 c1（MySQL 片段）居首；空查询返回错误。映射确认为 `dense_vector dims=32 similarity=cosine`。
+- 单元：Mock Embedder 确定性/单位范数；RRF 跨来源加分/降序/去重；marshalSearch JSON 转义；prompt 注入含来源标注；KnowledgeSearch 工具正常查询/空 query/分类过滤。
+
+## Stage 04 收尾
+
+- ES 写入边界补强：索引存在性检查区分 404 与其他错误；写入前校验向量维度，避免错误延迟到 ES 请求。
+- 验证：`go test ./...`、`GOCACHE=/tmp/pilot-gocache go vet ./...`、`git diff --check` 通过；真实 ES 集成链路已在带 `integration` 标签的测试中验证。
+- RAG 暂不接入 `cmd/pilot/wiring.go`：当前聊天业务没有消费 Retriever，避免启动时引入未使用的 ES/Embedding 强依赖。
+
 ## 后续
 
-- 学习者按 S 级清单手写后 Diff Review；再进 Stage 04（ES/RAG）。
+- 进入 Stage 05（Agent 与工具）：先设计 Agent 输入/输出契约和停止条件，再把 `knowledge_search` 作为第一个 Eino 工具接入；随后补 Agent Loop 的 S 级手写对照实现。
