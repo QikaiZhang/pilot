@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -35,6 +36,15 @@ func Load(path string) error {
 		}
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
+		if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+			unquoted, err := strconv.Unquote(value)
+			if err != nil {
+				return fmt.Errorf("%s:%d: invalid quoted value", path, line)
+			}
+			value = unquoted
+		} else if len(value) >= 2 && value[0] == '\'' && value[len(value)-1] == '\'' {
+			value = value[1 : len(value)-1]
+		}
 		if key == "" {
 			return fmt.Errorf("%s:%d: empty key", path, line)
 		}

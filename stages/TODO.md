@@ -22,3 +22,12 @@
 - [ ] 口述验收：能讲清数据流、分层职责、方案取舍
 - [ ] `stages/THOUGHT.md` 复盘题回答 + 面试口述素材填写
 - [ ] Docker Compose 集成跑通（先处理本机 3306 与 MySQL 冲突）
+
+## Stage 02 收尾
+
+- [x] `memory.Service.LoadRecent`：缓存命中、MySQL 回源和 Redis 回填
+- [x] `memory.Service.SaveMessages`：MySQL 优先写入和 Redis 失败策略
+- [x] fake store 单元测试和 `go test ./...`
+- [ ] Compose 环境下验证真实 MySQL/Redis 读写
+- [ ] 补充同一会话并发写入顺序策略
+- [ ] 更新 Stage 02 学习者回答和面试口述素材

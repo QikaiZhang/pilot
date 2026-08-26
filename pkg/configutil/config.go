@@ -51,11 +51,16 @@ type ESConfig struct {
 }
 
 // LLMConfig 是模型供应商相关配置。
+// Temperature/MaxTokens/Timeout 在 LLM_MODE=mock 时不会被消费，
+// 仅在选用 eino/openai 时生效，作为服务端给模型的默认参数。
 type LLMConfig struct {
-	Mode    string
-	BaseURL string
-	APIKey  string
-	Model   string
+	Mode        string
+	BaseURL     string
+	APIKey      string
+	Model       string
+	Temperature float32
+	MaxTokens   int
+	Timeout     time.Duration
 }
 
 // EmbeddingConfig 是向量化相关配置。
@@ -103,10 +108,13 @@ func Load() Config {
 			LogIndex:       getString("ES_LOG_INDEX", "pilot_logs"),
 		},
 		LLM: LLMConfig{
-			Mode:    getString("LLM_MODE", "mock"),
-			BaseURL: getString("LLM_BASE_URL", ""),
-			APIKey:  getString("LLM_API_KEY", ""),
-			Model:   getString("LLM_MODEL", ""),
+			Mode:        getString("LLM_MODE", "mock"),
+			BaseURL:     getString("LLM_BASE_URL", ""),
+			APIKey:      getString("LLM_API_KEY", ""),
+			Model:       getString("LLM_MODEL", ""),
+			Temperature: getFloat("LLM_TEMPERATURE", 0),
+			MaxTokens:   getInt("LLM_MAX_TOKENS", 0),
+			Timeout:     getDuration("LLM_TIMEOUT", 0),
 		},
 		Embedding: EmbeddingConfig{
 			Mode: getString("EMBEDDING_MODE", "mock"),
@@ -139,6 +147,18 @@ func getInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func getFloat(key string, fallback float32) float32 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(v, 32)
+	if err != nil {
+		return fallback
+	}
+	return float32(f)
 }
 
 func getBool(key string, fallback bool) bool {

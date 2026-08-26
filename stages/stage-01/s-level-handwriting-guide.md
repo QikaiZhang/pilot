@@ -1,7 +1,7 @@
 # Stage 01 · S 级手写指南
 
 > 路线 B【删除重写】：AI 提供可运行参考实现并强标记，学习者**先读设计说明 → 在参考实现上自己注释理解 → 删除 `BEGIN/END S_LEVEL_REFERENCE` 区域 → 从零独立重写 → 跑测试**。
-> 对应 `docs/stages/stage-01-skeleton.md` 的 S 级边界：优雅关闭、依赖检查失败聚合、错误到 HTTP 状态映射。
+> 对应 `docs/build/stages/stage-01-skeleton.md` 的 S 级边界：优雅关闭、依赖检查失败聚合、错误到 HTTP 状态映射。
 
 ---
 

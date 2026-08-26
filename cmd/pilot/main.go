@@ -63,10 +63,25 @@ func run() error {
 		return fmt.Errorf("startup dependency check failed: %s", strings.Join(failed, "; "))
 	}
 
+	runtimeCtx, cancelRuntime := context.WithTimeout(context.Background(), startupCheckTimeout)
+	rt, err := buildRuntime(runtimeCtx, cfg)
+	cancelRuntime()
+	if err != nil {
+		return fmt.Errorf("build application runtime: %w", err)
+	}
+	defer func() {
+		if err := rt.close(); err != nil {
+			slog.Warn("close application resources failed", "error", err)
+		}
+	}()
+
 	mux := http.NewServeMux()
 	health := controller.NewHealth(checkers)
 	mux.HandleFunc("GET /api/v1/health/live", health.Live)
 	mux.HandleFunc("GET /api/v1/health/ready", health.Ready)
+	chatHandler := controller.NewChat(rt.chat)
+	mux.HandleFunc("POST /api/v1/chat", chatHandler.Generate)
+	mux.HandleFunc("POST /api/v1/chat/stream", chatHandler.Stream)
 
 	srv := &http.Server{
 		Addr:              cfg.App.Addr,

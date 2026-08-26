@@ -60,6 +60,24 @@ func TestLoadSkipsCommentsAndBlanks(t *testing.T) {
 	}
 }
 
+func TestLoadUnquotesValues(t *testing.T) {
+	key := "ENVLOADER_TEST_QUOTED_VAR"
+	os.Unsetenv(key)
+	t.Cleanup(func() { os.Unsetenv(key) })
+
+	path := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(path, []byte(key+`="value"`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Load(path); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := os.Getenv(key); got != "value" {
+		t.Fatalf("want %q, got %q", "value", got)
+	}
+}
+
 func TestLoadMissingFileIsIgnored(t *testing.T) {
 	if err := Load(filepath.Join(t.TempDir(), "nope.env")); err != nil {
 		t.Fatalf("missing env file should be ignored, got %v", err)

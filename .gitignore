@@ -4,3 +4,5 @@ bin/
 
 ._*
 .codex/
+.codegraph/
+/源代码/
