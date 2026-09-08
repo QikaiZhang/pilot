@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"Pilot/internal/controller"
 	"Pilot/internal/deps"
+	"Pilot/internal/handler"
 	"Pilot/pkg/configutil"
 	"Pilot/pkg/envloader"
 )
@@ -76,12 +76,16 @@ func run() error {
 	}()
 
 	mux := http.NewServeMux()
-	health := controller.NewHealth(checkers)
+	health := handler.NewHealthHandler(checkers)
 	mux.HandleFunc("GET /api/v1/health/live", health.Live)
 	mux.HandleFunc("GET /api/v1/health/ready", health.Ready)
-	chatHandler := controller.NewChat(rt.chat)
+	chatHandler := handler.NewChatHandler(rt.chat)
 	mux.HandleFunc("POST /api/v1/chat", chatHandler.Generate)
 	mux.HandleFunc("POST /api/v1/chat/stream", chatHandler.Stream)
+	agentHandler := handler.NewAgentHandler(rt.agent)
+	mux.HandleFunc("POST /api/v1/agent/chat", agentHandler.Run)
+	knowledgeHandler := handler.NewKnowledgeHandler(rt.knowledge)
+	mux.HandleFunc("POST /api/v1/knowledge/documents", knowledgeHandler.Upload)
 
 	srv := &http.Server{
 		Addr:              cfg.App.Addr,

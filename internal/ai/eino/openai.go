@@ -39,6 +39,15 @@ type ChatModel struct {
 
 var _ projectai.ChatModel = (*ChatModel)(nil)
 
+// ToolCallingModel 暴露同一底层客户端的工具调用能力，供 Eino ReAct 组装使用。
+// 普通 ChatModel 接口仍保持不变，调用方只有在明确需要 Agent 时才使用该能力。
+func (m *ChatModel) ToolCallingModel() (einomodel.ToolCallingChatModel, error) {
+	if m == nil || m.model == nil {
+		return nil, errors.New("eino tool-calling model is not initialized")
+	}
+	return m.model, nil
+}
+
 // NewChatModel 创建一个 ChatModel 实例。
 func NewChatModel(ctx context.Context, config Config) (*ChatModel, error) {
 	if strings.TrimSpace(config.APIKey) == "" {

@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 )
@@ -76,6 +77,52 @@ type TokenStream interface {
 type ChatModel interface {
 	Generate(ctx context.Context, request ModelRequest) (ModelResponse, error)
 	Stream(ctx context.Context, request ModelRequest) (TokenStream, error)
+}
+
+// ToolDefinition 描述模型可以选择调用的工具。
+// Parameters 是 JSON Schema，保持供应商无关，适配器再转换为 Eino 或其他 SDK 类型。
+type ToolDefinition struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+// ModelToolCall 是模型生成的一次工具调用意图，不包含执行状态。
+// ID 用于把后续 ToolResult 与本次调用关联起来。
+type ModelToolCall struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+// ToolResult 是工具执行后的观察结果，Agent 会把它转换为 RoleTool 消息交回模型。
+type ToolResult struct {
+	CallID  string `json:"call_id"`
+	Name    string `json:"name"`
+	Content string `json:"content,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// ToolModelRequest 是支持工具调用的模型请求。
+type ToolModelRequest struct {
+	Messages []Message        `json:"messages"`
+	Tools    []ToolDefinition `json:"tools,omitempty"`
+	Options  ModelOptions     `json:"options"`
+}
+
+// ToolModelResponse 是支持工具调用的模型响应。
+// ToolCalls 非空时，Message 通常是工具调用前的 assistant 消息。
+type ToolModelResponse struct {
+	Message      Message         `json:"message"`
+	ToolCalls    []ModelToolCall `json:"tool_calls,omitempty"`
+	Usage        Usage           `json:"usage"`
+	FinishReason string          `json:"finish_reason,omitempty"`
+}
+
+// ToolCallingChatModel 是具备工具调用能力的模型契约。
+// 它与 ChatModel 分开，避免普通聊天调用被迫理解工具协议。
+type ToolCallingChatModel interface {
+	Generate(ctx context.Context, request ToolModelRequest) (ToolModelResponse, error)
 }
 
 func IsRoleValid(r string) error {

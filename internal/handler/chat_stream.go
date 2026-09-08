@@ -1,4 +1,4 @@
-package controller
+package handler
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 // Stream 处理 POST /api/v1/chat/stream。
 // 业务编排与三条生命周期顺序（LoadRecent -> 保存 user -> 启动模型流）
 // 都留在 chat.Service.Stream；控制层只负责把 EventStream 编码成 SSE 帧。
-func (h *Chat) Stream(w http.ResponseWriter, r *http.Request) {
+func (h *ChatHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.service == nil {
 		WriteError(w, http.StatusInternalServerError, "chat_unavailable", "chat service is unavailable")
 		return

@@ -73,7 +73,7 @@ func (s *Service) Generate(ctx context.Context, request TurnRequest) (ChatRespon
 	if err != nil {
 		return ChatResponse{}, fmt.Errorf("load recent conversation: %w", err)
 	}
-	
+
 	userMessage, err := s.newMemoryMessage(request, memory.RoleUser, request.Query)
 	if err != nil {
 		return ChatResponse{}, err
@@ -100,7 +100,7 @@ func (s *Service) Generate(ctx context.Context, request TurnRequest) (ChatRespon
 	if err := s.memory.SaveMessages(ctx, []memory.ChatMessage{assistantMessage}); err != nil {
 		return ChatResponse{}, fmt.Errorf("save assistant message: %w", err)
 	}
-	
+
 	return ChatResponse{Content: response.Message.Content, Usage: response.Usage}, nil
 }
 

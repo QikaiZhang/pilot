@@ -1,4 +1,4 @@
-package controller
+package handler
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestLiveReturnsOK(t *testing.T) {
-	h := NewHealth(nil)
+	h := NewHealthHandler(nil)
 	rec := httptest.NewRecorder()
 	h.Live(rec, httptest.NewRequest("GET", "/api/v1/health/live", nil))
 
@@ -28,7 +28,7 @@ func TestLiveReturnsOK(t *testing.T) {
 }
 
 func TestReadyAllOK(t *testing.T) {
-	h := NewHealth([]deps.Dependency{
+	h := NewHealthHandler([]deps.Dependency{
 		{Name: "redis", Check: func(context.Context) error { return nil }},
 		{Name: "mysql", Check: func(context.Context) error { return nil }},
 	})
@@ -51,7 +51,7 @@ func TestReadyAllOK(t *testing.T) {
 }
 
 func TestReadyReportsFailurePerItem(t *testing.T) {
-	h := NewHealth([]deps.Dependency{
+	h := NewHealthHandler([]deps.Dependency{
 		{Name: "redis", Check: func(context.Context) error { return nil }},
 		{Name: "mysql", Check: func(context.Context) error { return errors.New("mysql: connection refused") }},
 	})

@@ -1,4 +1,4 @@
-package controller
+package handler
 
 import (
 	"context"
@@ -44,7 +44,7 @@ type flushRecorder struct {
 
 func (f flushRecorder) Flush() {}
 
-func newTestStreamHandler(t *testing.T, model ai.ChatModel) *Chat {
+func newTestStreamHandler(t *testing.T, model ai.ChatModel) *ChatHandler {
 	t.Helper()
 	service, err := chat.NewService(streamMemoryStub{}, model, chat.Config{
 		HistoryLimit: 4,
@@ -53,7 +53,7 @@ func newTestStreamHandler(t *testing.T, model ai.ChatModel) *Chat {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewChat(service)
+	return NewChatHandler(service)
 }
 
 type oneShotStream struct {

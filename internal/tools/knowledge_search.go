@@ -16,6 +16,10 @@ import (
 type Tool interface {
 	// Name 返回工具名，供模型引用。
 	Name() string
+	// Description 返回给模型的工具用途说明。
+	Description() string
+	// Parameters 返回工具入参的 JSON Schema。
+	Parameters() json.RawMessage
 	// Execute 执行工具并返回 JSON 序列化的结果。
 	Execute(ctx context.Context, input json.RawMessage) (any, error)
 }
@@ -48,6 +52,16 @@ func NewKnowledgeSearch(retriever ai.Retriever) *KnowledgeSearch {
 // Name 返回工具名。
 func (k *KnowledgeSearch) Name() string {
 	return "knowledge_search"
+}
+
+// Description 返回知识库检索的模型说明。
+func (k *KnowledgeSearch) Description() string {
+	return "检索项目知识库，返回与问题最相关的文档片段。"
+}
+
+// Parameters 返回知识检索参数的 JSON Schema。
+func (k *KnowledgeSearch) Parameters() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"top_k":{"type":"integer","minimum":1},"category":{"type":"string"}},"required":["query"]}`)
 }
 
 // Execute 解析入参、执行检索并返回结构化结果。

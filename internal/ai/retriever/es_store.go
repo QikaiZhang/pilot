@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -31,6 +32,18 @@ type ESStore struct {
 	dim    int
 }
 
+// NewESClient 创建可复用的 Elasticsearch 客户端；客户端本身不会主动发请求。
+func NewESClient(cfg ESConfig) (*elasticsearch.Client, error) {
+	if len(cfg.Addresses) == 0 {
+		return nil, errNoESAddress
+	}
+	client, err := elasticsearch.NewClient(elasticsearch.Config{Addresses: cfg.Addresses, Username: cfg.Username, Password: cfg.Password})
+	if err != nil {
+		return nil, fmt.Errorf("create elasticsearch client: %w", err)
+	}
+	return client, nil
+}
+
 // NewESStore 构造 ESStore 并确保目标索引存在（不存在则按 spec 02 创建）。
 // dim 必须等于嵌入向量的维度（如 EMBEDDING_DIM），否则 mapping 与嵌入不一致。
 func NewESStore(ctx context.Context, cfg ESConfig, dim int) (*ESStore, error) {
@@ -44,11 +57,7 @@ func NewESStore(ctx context.Context, cfg ESConfig, dim int) (*ESStore, error) {
 		return nil, errInvalidDim
 	}
 
-	client, err := elasticsearch.NewClient(elasticsearch.Config{
-		Addresses: cfg.Addresses,
-		Username:  cfg.Username,
-		Password:  cfg.Password,
-	})
+	client, err := NewESClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create elasticsearch client: %w", err)
 	}
@@ -171,6 +180,69 @@ func (s *ESStore) Index(ctx context.Context, chunk ai.Chunk, vector []float32, e
 	defer res.Body.Close()
 	if res.IsError() {
 		return fmt.Errorf("index chunk %s: status %d", chunk.ChunkID, res.StatusCode)
+	}
+	return nil
+}
+
+// IndexedChunk 是已经完成 embedding 的待写入片段。
+type IndexedChunk struct {
+	Chunk          ai.Chunk
+	Vector         []float32
+	EmbeddingModel string
+	CreatedAt      string
+}
+
+// IndexMany 使用 Bulk API 批量写入片段，避免每个 chunk 产生一次 HTTP 往返。
+func (s *ESStore) IndexMany(ctx context.Context, chunks []IndexedChunk) error {
+	if s == nil || s.client == nil {
+		return errNoESClient
+	}
+	if len(chunks) == 0 {
+		return nil
+	}
+	var body bytes.Buffer
+	for _, item := range chunks {
+		if item.Chunk.ChunkID == "" {
+			return errNoChunkID
+		}
+		if len(item.Vector) != s.dim {
+			return fmt.Errorf("%w: got %d, want %d", errInvalidVectorDim, len(item.Vector), s.dim)
+		}
+		doc := esDoc{
+			DocID: item.Chunk.DocID, ChunkID: item.Chunk.ChunkID, Title: item.Chunk.Title,
+			Content: item.Chunk.Content, Category: item.Chunk.Category, Tags: item.Chunk.Tags,
+			Source: item.Chunk.Source, Version: item.Chunk.Version, EmbeddingModel: item.EmbeddingModel,
+			EmbeddingDim: s.dim, Vector: item.Vector, CreatedAt: item.CreatedAt,
+		}
+		meta, err := json.Marshal(map[string]any{"index": map[string]string{"_id": item.Chunk.ChunkID}})
+		if err != nil {
+			return fmt.Errorf("marshal bulk metadata: %w", err)
+		}
+		data, err := json.Marshal(doc)
+		if err != nil {
+			return fmt.Errorf("marshal chunk %s: %w", item.Chunk.ChunkID, err)
+		}
+		body.Write(meta)
+		body.WriteByte('\n')
+		body.Write(data)
+		body.WriteByte('\n')
+	}
+	res, err := s.client.Bulk(bytes.NewReader(body.Bytes()), s.client.Bulk.WithContext(ctx), s.client.Bulk.WithIndex(s.index), s.client.Bulk.WithRefresh("true"))
+	if err != nil {
+		return fmt.Errorf("bulk index chunks: %w", err)
+	}
+	defer res.Body.Close()
+	if res.IsError() {
+		return fmt.Errorf("bulk index chunks: status %d", res.StatusCode)
+	}
+	var result struct {
+		Errors bool `json:"errors"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return fmt.Errorf("decode bulk response: %w", err)
+	}
+	if result.Errors {
+		return errors.New("bulk index chunks returned item errors")
 	}
 	return nil
 }

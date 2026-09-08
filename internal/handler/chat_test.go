@@ -1,4 +1,4 @@
-package controller
+package handler
 
 import (
 	"context"
@@ -33,7 +33,7 @@ func (chatModelStub) Stream(context.Context, ai.ModelRequest) (ai.TokenStream, e
 	return nil, errors.New("stream is not used in this test")
 }
 
-func newTestChatHandler(t *testing.T) *Chat {
+func newTestChatHandler(t *testing.T) *ChatHandler {
 	t.Helper()
 	service, err := chat.NewService(chatMemoryStub{}, chatModelStub{}, chat.Config{
 		HistoryLimit: 4,
@@ -42,7 +42,7 @@ func newTestChatHandler(t *testing.T) *Chat {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewChat(service)
+	return NewChatHandler(service)
 }
 
 func TestChatGenerate(t *testing.T) {

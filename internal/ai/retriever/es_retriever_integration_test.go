@@ -4,6 +4,7 @@ package retriever
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -42,6 +43,7 @@ func TestESRetrieverEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := esTestEnv(t)
+	cfg.KnowledgeIndex = fmt.Sprintf("pilot_knowledge_it_%d", time.Now().UnixNano())
 	store, err := NewESStore(ctx, cfg, em.Dim())
 	if err != nil {
 		t.Fatalf("NewESStore: %v", err)
@@ -88,5 +90,49 @@ func TestESRetrieverEndToEnd(t *testing.T) {
 	// 空查询应作为错误返回，而不是静默全量召回。
 	if _, err := retriever.Retrieve(ctx, "   ", 3); err == nil {
 		t.Fatal("Retrieve with empty query expected error")
+	}
+}
+
+func TestKnowledgeIngestorBulkThenRetrieve(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	em, err := embedder.NewMock(32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := esTestEnv(t)
+	cfg.KnowledgeIndex = fmt.Sprintf("pilot_knowledge_ingest_it_%d", time.Now().UnixNano())
+	store, err := NewESStore(ctx, cfg, em.Dim())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ingestor, err := NewIngestor(store, em, "mock", 40, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chunks, err := ingestor.Ingest(ctx, KnowledgeDocument{
+		DocID: "redis-runbook", Title: "Redis 超时排查", Content: "客户端连接超时。检查连接池、网络和 Redis 负载。", Source: "testdata/rag", Category: "缓存", Version: 1,
+	})
+	if err != nil {
+		t.Fatalf("Ingest: %v", err)
+	}
+	if len(chunks) == 0 || chunks[0].ChunkID == "" {
+		t.Fatalf("chunks = %+v", chunks)
+	}
+
+	client, err := NewESClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retriever, err := NewESRetriever(client, cfg.KnowledgeIndex, em, 3, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := retriever.Retrieve(ctx, "Redis 连接超时", 3)
+	if err != nil {
+		t.Fatalf("Retrieve: %v", err)
+	}
+	if len(results) == 0 || results[0].DocID != "redis-runbook" {
+		t.Fatalf("results = %+v, want redis-runbook", results)
 	}
 }

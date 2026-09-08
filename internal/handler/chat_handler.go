@@ -1,4 +1,4 @@
-package controller
+package handler
 
 import (
 	"encoding/json"
@@ -11,18 +11,18 @@ import (
 
 const maxChatRequestBody = 1 << 20
 
-// Chat 提供同步对话 HTTP 接口。
+// ChatHandler 提供同步对话 HTTP 接口。
 // 业务编排留在 chat.Service，控制层只负责协议转换和状态码映射。
-type Chat struct {
+type ChatHandler struct {
 	service *chat.Service
 }
 
-func NewChat(service *chat.Service) *Chat {
-	return &Chat{service: service}
+func NewChatHandler(service *chat.Service) *ChatHandler {
+	return &ChatHandler{service: service}
 }
 
 // Generate 处理 POST /api/v1/chat。
-func (h *Chat) Generate(w http.ResponseWriter, r *http.Request) {
+func (h *ChatHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	//防御性检查
 	if h == nil || h.service == nil {
 		WriteError(w, http.StatusInternalServerError, "chat_unavailable", "chat service is unavailable")

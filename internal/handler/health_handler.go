@@ -1,5 +1,5 @@
 // Package controller 提供 HTTP 接口层。
-package controller
+package handler
 
 import (
 	"context"
@@ -12,18 +12,18 @@ import (
 
 const healthTimeout = 3 * time.Second
 
-// Health 提供 /api/v1/health/live 与 /api/v1/health/ready。
-type Health struct {
+// HealthHandler 提供 /api/v1/health/live 与 /api/v1/health/ready。
+type HealthHandler struct {
 	checkers []deps.Dependency
 }
 
-// NewHealth 构造健康检查处理器。
-func NewHealth(checkers []deps.Dependency) *Health {
-	return &Health{checkers: checkers}
+// NewHealthHandler 构造健康检查处理器。
+func NewHealthHandler(checkers []deps.Dependency) *HealthHandler {
+	return &HealthHandler{checkers: checkers}
 }
 
 // Live 只证明进程存在。
-func (h *Health) Live(w http.ResponseWriter, _ *http.Request) {
+func (h *HealthHandler) Live(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -31,7 +31,7 @@ func (h *Health) Live(w http.ResponseWriter, _ *http.Request) {
 // WARNING S级核心逻辑：理解后必须删除本区域，并从零独立重写，禁止直接复用。
 // 删除范围：从 BEGIN S_LEVEL_REFERENCE 到 END S_LEVEL_REFERENCE。
 // BEGIN S_LEVEL_REFERENCE
-func (h *Health) Ready(w http.ResponseWriter, r *http.Request) {
+func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), healthTimeout)
 	defer cancel()
 
