@@ -1,0 +1,14 @@
+{"id":"redis-timeout-01","query":"Redis 连接超时怎么排查","expected":[{"doc_id":"redis-timeout","relevance":3}],"answerable":true,"required_facts":["检查实例存活","检查网络连通性"],"required_citations":["redis-timeout"],"language":"zh","category":"cache"}
+{"id":"redis-timeout-02","query":"redis-cli ping 返回不了怎么处理","expected":[{"doc_id":"redis-timeout","relevance":2}],"answerable":true,"language":"zh","category":"cache"}
+{"id":"redis-timeout-03","query":"连接池耗尽会导致连接超时吗，怎么解决","expected":[{"doc_id":"redis-timeout","relevance":3}],"answerable":true,"required_facts":["连接池最大连接数","拨号和读写超时"],"language":"zh","category":"cache"}
+{"id":"redis-timeout-04","query":"Redis 内存水位高会不会导致超时","expected":[{"doc_id":"redis-timeout","relevance":2}],"answerable":true,"language":"zh","category":"cache"}
+{"id":"redis-timeout-en-01","query":"Why does Redis connection timeout happen","expected":[{"doc_id":"redis-timeout","relevance":2}],"answerable":true,"language":"en","category":"cache"}
+{"id":"mysql-replication-01","query":"MySQL 从库延迟升高怎么定位","expected":[{"doc_id":"mysql-replication","relevance":3}],"answerable":true,"required_facts":["SHOW REPLICA STATUS","IO 线程","SQL 线程","延迟字段"],"required_citations":["mysql-replication"],"language":"zh","category":"database"}
+{"id":"mysql-replication-02","query":"从库复制线程停止是什么原因","expected":[{"doc_id":"mysql-replication","relevance":2}],"answerable":true,"language":"zh","category":"database"}
+{"id":"mysql-replication-03","query":"SHOW REPLICA STATUS 里哪些字段要看","expected":[{"doc_id":"mysql-replication","relevance":2}],"answerable":true,"required_facts":["IO 线程","SQL 线程","延迟"],"language":"zh","category":"database"}
+{"id":"mysql-replication-04","query":"复制延迟会读到旧数据吗","expected":[{"doc_id":"mysql-replication","relevance":2}],"answerable":true,"language":"zh","category":"database"}
+{"id":"mysql-replication-en-01","query":"How to diagnose replica lag in MySQL","expected":[{"doc_id":"mysql-replication","relevance":2}],"answerable":true,"language":"en","category":"database"}
+{"id":"es-cluster-01","query":"Elasticsearch 集群 red 状态先检查什么","expected":[{"doc_id":"elasticsearch-cluster","relevance":3}],"answerable":true,"required_facts":["集群健康","未分配分片","节点磁盘水位"],"required_citations":["elasticsearch-cluster"],"language":"zh","category":"database"}
+{"id":"es-cluster-02","query":"ES yellow 状态要不要马上提副本","expected":[{"doc_id":"elasticsearch-cluster","relevance":2}],"answerable":true,"language":"zh","category":"database"}
+{"id":"es-cluster-03","query":"未分配分片怎么恢复","expected":[{"doc_id":"elasticsearch-cluster","relevance":2}],"answerable":true,"language":"zh","category":"database"}
+{"id":"es-cluster-04","query":"磁盘空间不足时能调副本数吗","expected":[{"doc_id":"elasticsearch-cluster","relevance":2}],"answerable":true,"language":"zh","category":"database"}

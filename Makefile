@@ -1,4 +1,4 @@
-.PHONY: run build test tidy compose-up compose-down compose-logs health infra-up infra-down infra-logs stream
+.PHONY: run build test tidy compose-up compose-down compose-logs health infra-up infra-down infra-logs stream rag-eval
 
 run:
 	go run ./cmd/pilot
@@ -65,3 +65,8 @@ stream:
 	@curl -N http://localhost:8080/api/v1/chat/stream \
 		-H "Content-Type: application/json" \
 		-d '{"user_id":"u1","session_id":"s1","query":"hello"}'
+
+# RAG 检索质量评估：需要先启动 ES（infra-up / compose-up）并导入知识。
+# 报告默认写到 stdout，可加 -out reports/rag-eval.json 输出 JSON 文件。
+rag-eval:
+	go run ./cmd/eval -dataset testdata/rag/eval/queries.jsonl -k 5
