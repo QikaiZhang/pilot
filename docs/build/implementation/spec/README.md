@@ -11,6 +11,9 @@
 | [05-memory-persistence.md](05-memory-persistence.md) | Redis 短期窗口、MySQL 历史与失败策略 |
 | [06-streaming-sse.md](06-streaming-sse.md) | Chat Stream 生命周期、SSE 事件和取消策略 |
 | [07-rag.md](07-rag.md) | Embedder/Retriever 契约、RRF 融合和 ES 检索链路 |
+| [08-agent.md](08-agent.md) | Agent Runner、工具调用协议、Registry 和失败策略 |
+| [09-agent-rag-production.md](09-agent-rag-production.md) | Agent、RAG、策略、循环和审计的统一生产化设计 |
+| [10-rag-ingestion-evaluation.md](10-rag-ingestion-evaluation.md) | 知识文档导入、版本、性能风险和召回评估 |
 
 ## 使用规则
 

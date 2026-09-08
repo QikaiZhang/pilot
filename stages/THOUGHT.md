@@ -170,3 +170,85 @@ Controller / 上层用例
 - 核心难点：
 - 方案取舍：
 - 结果与优化：
+
+## Stage 05：Agent 策略、中间件与并发边界（当前思考）
+
+### 问题背景
+
+Agent 的一次模型响应可能包含多个 Tool Call。Eino 当前配置为顺序执行，但策略层不能依赖这个实现细节；未来开启并行工具调用后，多个 goroutine 会同时访问本次运行的预算、重复失败计数和审计状态。
+
+### `runState` 与临界区
+
+本次 Agent 执行必须创建独立的 `runState`，通过当前请求的 `context.Context` 传给工具中间件，不能放在 Agent 实例字段或全局变量中，否则并发请求会互相污染。状态至少包括：
+
+- `toolCalls`：本次请求已接受的工具调用数；
+- `consecutiveFails`：工具名和参数指纹对应的连续失败次数；
+- 审计记录和限制原因。
+
+`toolCalls++` 是读-改-写操作，`map` 也不能并发读写，因此访问这些字段必须加锁。锁只保护内存状态：
+
+```text
+加锁 -> 检查预算并递增 -> 解锁
+执行 next（网络/磁盘/数据库 IO，不持锁）
+加锁 -> 更新成功或失败计数 -> 解锁
+```
+
+如果把锁持有到 `next` 返回，多个并行工具会被强制串行，策略中间件反而破坏了并行能力。可以带走的并发原则是：**锁保护共享内存，不保护耗时 IO**。
+
+### 参数指纹
+
+重复调用检测使用 `工具名 + 规范化 JSON 参数` 生成 SHA-256 指纹，不包含模型生成的 CallID。不能只挑几个“关键字段”，否则不同参数可能被误判为相同，也会让通用中间件依赖具体工具。
+
+规范化规则需要固定：先校验 JSON，再按稳定的对象键顺序重新编码；数组顺序仍然有业务意义，不能随意排序。指纹只用于本次 Run 内的重复失败保护，不作为跨请求的幂等键。
+
+### 策略拒绝与基础设施错误
+
+两者必须分开，不能都叫 `tool execution failed`：
+
+| 类型 | 例子 | 是否执行真实工具 | 审计状态 | 对模型/Runner 的语义 |
+| --- | --- | --- | --- | --- |
+| AI Policy Error | 参数过大、工具不在白名单、调用预算耗尽、重复失败达到阈值 | 否 | `rejected` | 返回稳定的结构化 Tool Observation；默认不取消整个 Context |
+| Infrastructure Error | Redis/ES 超时、连接拒绝、依赖返回 5xx | 是 | `failed` | 保留可重试/不可重试语义，交给 fallback 或有限重试处理 |
+| Model/Runner Error | 模型调用失败、Graph 超时、上下文取消 | 不适用 | 保留已有审计 | 结束本次 Agent，返回稳定错误或有限答案 |
+
+参数超限采用软拒绝：中间件不调用 `next`，返回结构化错误结果且不主动 `cancel`。这样模型有机会修正参数，Eino 的其他节点也不会因为一个普通策略判断被粗暴打断。但必须配合重复拒绝阈值，否则模型可能无限修正或重复调用。
+
+基础设施错误不能被伪装成“没有知识”或“策略拒绝”。是否把它转换成正常 Tool Observation，还是直接让 Eino 返回错误，需要通过集成测试确认；无论采用哪种方式，审计都应记录为 `failed`，并保留稳定的依赖错误码。
+
+### 设计边界与实施顺序
+
+1. `internal/agent`：只保存 `BudgetPolicy`、`RepeatCallPolicy`、`FallbackPolicy` 和校验逻辑，不导入 Eino。
+2. `internal/ai/eino`：用 `compose.ToolMiddleware` 实现参数检查、调用预算、重复失败保护和审计切面；普通 Tool 代码不感知策略。
+3. `PolicyAwareRunner`：在 Run 前派生超时 Context、创建 `runState`，Run 后汇总审计和 Fallback。它不重新实现 Eino Loop。
+4. 先用 fake tool 和并发测试验证临界区，再做 Eino 两轮调用和软拒绝集成测试。
+
+### 待确认与待验证
+
+- Eino 在 Tool Middleware 返回 `ToolOutput, nil` 时是否会稳定地把结果交回模型并继续下一轮；需要集成测试确认。
+- Eino `Generate` 失败时是否能取得此前的 assistant 部分答案，决定 `FallbackAnswerWithoutTool` 的可用范围。
+- 当前 `ToolCallStatus` 只有 `succeeded/failed`，实现策略拒绝前需要增加 `rejected`，否则审计会丢失重要语义。
+
+### 当前实现进展
+
+- 已完成参数超限和工具调用总预算 Middleware：策略拒绝返回结构化 Observation，不取消 Agent Context。
+- 已完成单次 Run 内的重复失败保护：使用工具名和规范化 JSON 参数的 SHA-256 指纹；成功调用清除该指纹的失败计数，达到阈值后后续调用标记为 `rejected`。
+- 预算预占、失败计数和拒绝审计均由短粒度互斥锁保护，真实 Tool 的 `next` 执行不持锁；并发行为已通过 `go test -race` 验证。
+- 这仍不是跨请求共享的 Circuit Breaker。跨请求熔断需要独立状态、半开探测和实例间协调，暂不纳入本切片。
+
+### 三种执行粒度与 PolicyAwareRunner（已实现）
+
+Middleware 的触发时机是**每次真实工具执行**，不是每轮模型调用：模型第一轮直接返回文本时中间件一次都不会执行；一轮返回 N 个 ToolCall（`ExecuteSequentially: true`）则顺序各过一次中间件。跨轮生效靠 `EinoRunner.Run` 每次请求创建一次 `policyRunState` 并随 `runCtx` 下发。
+
+三种粒度的最终分工：
+
+| 粒度 | 负责策略 | 执行位置 |
+| --- | --- | --- |
+| 工具调用级 | 参数上限、调用预算、重复失败保护 | Eino `ToolCallMiddlewares` |
+| 模型轮次级 | MaxSteps、step 计数 | Eino ReAct 循环（MaxStep）+ audit 回调 |
+| 请求级 | 总超时、超时/取消稳定语义、FallbackPolicy | `agent.PolicyAwareRunner` |
+
+- `internal/agent/policy_runner.go` 新增请求级包装器：Run 前从请求 ctx 派生策略超时；失败时先判断生命周期（错误链包含 `DeadlineExceeded`/`Canceled`，或 `runCtx.Err()` 已到期——内部 Runner 可能把超时包进框架错误，两种都要看），超时/取消优先返回 `ErrAgentTimeout`/`ErrAgentCancelled`，不被普通工具错误掩盖；普通失败再按 `ResolveFallback` 收口。
+- `AgentPolicy.ResolveFallback` 落在 contract 层：`answer_without_tool` 只在模型已产出非空文本时降级为有限回答，`return_error` 透传原始错误，两者都写入 limitations 并保留工具审计。
+- 组合根装配顺序：`EinoRunner`（能力层）→ `PolicyAwareRunner`（请求级收口）。EinoRunner 内部仍保留一次同策略超时派生作为兜底；两层同时派生时先到者生效，语义一致。
+- Handler 映射：`ErrAgentTimeout` → 504 `agent_timeout`，`ErrAgentCancelled` → 499 `agent_cancelled`，让客户端能区分“失败”和“还没算完”。
+- 待验证（留给集成测试）：`FallbackAnswerWithoutTool` 在 Eino 路径下的可用范围——`Generate` 失败时能否拿到此前的 assistant 部分文本，决定降级回答是否真的存在。

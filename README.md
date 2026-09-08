@@ -2,26 +2,29 @@
 
 Pilot 是一个面向运维排障的 Go AI 助手。它的目标是接收用户的问题，结合会话上下文、知识库和可观测性数据生成可追溯的排障建议。
 
-> 当前状态：Stage 01 已完成基础骨架，Stage 02 已完成消息模型、MySQL 历史、Redis 短期记忆和 `memory.Service` 的核心读写协调。聊天 API、AI 模型、知识检索和 Agent 仍按阶段实现中。
+> 当前状态：Stage 01-03 已完成；Stage 04 已完成 ES 混合检索基础，正在补知识文档导入、版本管理和召回评估；Stage 05 已接通 Eino Agent、health_check、knowledge_search、手写 Loop 基准和 ToolCall 审计。Prometheus/Trace/Log 观测安排在 Agent/RAG 业务事件稳定后接入。
 
 ## 系统全览
 
 ```text
 客户端
   -> HTTP/SSE API
-  -> Controller
+  -> Handler
   -> 会话记忆（Redis）
   -> Agent / 模型 / 工具
   -> 历史事实（MySQL）
-  -> 知识检索（Elasticsearch）
+  -> 知识库导入/检索（Elasticsearch）
   -> 指标、日志、Trace
 ```
 
 各层职责如下：
 
 - `cmd/`：程序入口和运维命令。
-- `internal/controller/`：HTTP 接口和请求校验。
+- `internal/handler/`：HTTP Handler、请求校验和响应编码，包括 Agent 与知识文档导入入口。
 - `internal/deps/`：启动时检查外部依赖。
+- `internal/agent/`：Agent Runner、执行策略和编排流程。
+- `internal/tools/`：Agent 可调用工具及 Registry。
+- `internal/ai/`：模型契约、供应商适配、Prompt、Embedding、知识切分和检索。
 - `pkg/`：配置、环境变量等可复用工具。
 - `manifest/`：Docker Compose 和运行配置。
 - `docs/`、`stages/`：设计契约、学习路线和阶段验收。
@@ -39,7 +42,7 @@ Pilot 是一个面向运维排障的 Go AI 助手。它的目标是接收用户�
 
 同一会话的后续请求继续使用 `redis-timeout-1`，系统才能读取之前的消息。Redis 保存最近窗口，MySQL 保存完整历史；`session_id` 不是登录凭证，也不是独立用户体系。
 
-目前根代码还没有实现聊天路由，因此会话逻辑现在是 API 和持久化设计中的概念，而不是已经可调用的完整功能。Stage 02 会实现历史和记忆存储，Stage 03 再接入同步聊天与 SSE。
+当前会话逻辑已接入同步 Chat、SSE 和 Agent 路由。Redis 保存最近窗口，MySQL 保存完整历史；Agent 请求还会在需要时调用知识库工具。
 
 ## 本地开发
 
@@ -58,4 +61,5 @@ make health     # 检查 live/ready 接口
 1. Stage 01：启动、配置、健康检查和依赖边界。
 2. Stage 02：Redis 短期记忆与 MySQL 长期历史。
 3. Stage 03：同步聊天、SSE、取消传播和错误处理。
-4. 后续阶段：知识检索、Agent 工具、多 Agent 和可观测性。
+4. Stage 04-05 收尾：知识导入、RAG 评估、Agent 工具限制、失败回退和审计。
+5. Stage 06：在上述业务事件稳定后接入 Prometheus、Trace 和结构化日志。

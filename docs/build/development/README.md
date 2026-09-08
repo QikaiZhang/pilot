@@ -20,9 +20,11 @@
 ```text
 cmd/             程序入口和运维命令
 internal/
-  controller/    HTTP/SSE 接口层
+  handler/       HTTP/SSE Handler 层
   memory/        Redis 短期记忆、MySQL 长期历史
-  ai/            Agent、模型、Prompt、Embedding、检索、工具
+  ai/            模型契约、供应商适配、Prompt、Embedding 和检索
+  agent/         Agent Runner、策略和编排流程
+  tools/         Agent 可调用工具及 Registry
   observability/ 指标、Trace、结构化日志中间件
 pkg/             可复用的配置、Redis、ES、环境变量和类型工具
 manifest/        YAML、Docker Compose 等交付配置

@@ -4,6 +4,8 @@
 
 第一次接触 ES 时先建立“索引、文档、Mapping、查询、分词、向量”的最小心智模型，再实现可解释的检索链路。
 
+当前状态：基础 BM25+kNN+RRF 查询已完成；文档导入、稳定 chunk、版本生命周期和召回评估按 [10-rag-ingestion-evaluation.md](../implementation/spec/10-rag-ingestion-evaluation.md) 推进。
+
 ## 建议顺序
 
 1. 文档切分：保留 `doc_id`、`chunk_id`、标题、来源和版本。

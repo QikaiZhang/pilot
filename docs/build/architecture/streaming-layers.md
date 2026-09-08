@@ -35,8 +35,8 @@ Recv() -> ModelChunk    ──>      Recv() -> StreamEvent       ──>      da
 - **没有 Go 接口**。它就是 HTTP 响应头 `Content-Type: text/event-stream` + 每帧 `data: {...}\n\n` + `http.Flusher.Flush()`。
 - **语义**：完全不关心流里是 token 还是业务事件，只做协议适配。
 - **实例（实现者）**：
-  - `internal/controller/sse.go`：`setSSEHeaders`（设头）+ `writeSSEEvent`（把 `StreamEvent` JSON 序列化并写上 `data: ...\n\n`）。
-  - `internal/controller/chat_stream.go` 的 `Chat.Stream`：循环 `EventStream.Recv()` → `writeSSEEvent` → `Flush()`。
+  - `internal/handler/sse.go`：`setSSEHeaders`（设头）+ `writeSSEEvent`（把 `StreamEvent` JSON 序列化并写上 `data: ...\n\n`）。
+  - `internal/handler/chat_stream.go` 的 `ChatHandler.Stream`：循环 `EventStream.Recv()` → `writeSSEEvent` → `Flush()`。
 
 ## 两次转换的边界（每层只做一件事）
 
@@ -57,7 +57,7 @@ Recv() -> ModelChunk    ──>      Recv() -> StreamEvent       ──>      da
 - 这里也解释了「`done` 之后下一次 `Recv` 才是 `io.EOF`」：`finish()` 把 `finished` 置为 `true`，下次 `Recv` 直接返回 `io.EOF`。`done` 告诉客户端「最后一条」，`io.EOF` 告诉适配器「流已断开」。
 - `Close()` 幂等：`defer stream.Close()`（层3）和 `serviceStream` 内部（`finish`/错误分支）都会调用，靠 `closed` 标志保证底层 `TokenStream.Close()` 只真正执行一次。
 
-### 转换B：层2 → 层3（在 `internal/controller`，做协议适配）
+### 转换B：层2 → 层3（在 `internal/handler`，做协议适配）
 
 `Chat.Stream` 的循环：
 

@@ -8,7 +8,7 @@
 
 `internal/chat` 是业务层。`Service.Stream` 负责规范化 `TurnRequest`、调用 `LoadRecent`、保存 user 消息、启动 `ai.ChatModel.Stream`，并返回 `EventStream`。`serviceStream` 累积模型增量，在上游 EOF 时保存完整 assistant。
 
-`internal/controller` 是协议层。SSE Handler（`POST /api/v1/chat/stream`，`Chat.Stream`）负责解析 JSON、设置响应头、循环读取 `EventStream`、写入 `data: ...\n\n` 并调用 `http.Flusher.Flush`。它不直接访问 Redis、MySQL 或供应商 SDK。
+`internal/handler` 是协议层。SSE Handler（`POST /api/v1/chat/stream`，`ChatHandler.Stream`）负责解析 JSON、设置响应头、循环读取 `EventStream`、写入 `data: ...\n\n` 并调用 `http.Flusher.Flush`。它不直接访问 Redis、MySQL 或供应商 SDK。
 
 三层转换点：Eino/SDK 适配成 `ai.TokenStream`（裸增量），`Service.Stream` 把 `TokenStream` 归一成 `chat.EventStream`（content/done/error + 生命周期），Handler 把 `EventStream` 编码成 SSE 帧。每一层都只做一次转换，互不泄漏。
 

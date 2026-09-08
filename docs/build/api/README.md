@@ -24,6 +24,8 @@
 | POST | `/api/v1/chat` | 同步对话（主路径） | 03 |
 | POST | `/api/v1/chat/` | 同步对话（旧客户端兼容） | 03 |
 | POST | `/api/v1/chat/stream` | SSE 流式对话 | 03 |
+| POST | `/api/v1/agent/chat` | 带工具编排的同步 Agent 对话 | 05 |
+| POST | `/api/v1/knowledge/documents` | 导入知识文档并切分入库 | 05 |
 | GET | `/api/v1/chat/history` | 历史查询 | 02/03 |
 | DELETE | `/api/v1/chat/history` | 历史清理 | 02/03 |
 | POST | `/api/v1/chat/multi-agent` | 多 Agent 排障 | 05 |
