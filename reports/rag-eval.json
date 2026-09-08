@@ -1,0 +1,60 @@
+{
+  "k": 5,
+  "embedder": "mock",
+  "index": "pilot_knowledge",
+  "dataset": "testdata/rag/eval/queries.jsonl",
+  "generated_at": "2026-09-08T15:25:46Z",
+  "total": 14,
+  "hit_count": 14,
+  "errors": 0,
+  "overall": {
+    "n": 14,
+    "hit_rate_at_k": 1,
+    "recall_at_k": 1,
+    "precision_at_k": 0.2,
+    "mrr": 0.9642857142857143,
+    "ndcg_at_k": 0.9736378395408184,
+    "duplicate_rate_at_k": 0
+  },
+  "by_category": {
+    "cache": {
+      "n": 5,
+      "hit_rate_at_k": 1,
+      "recall_at_k": 1,
+      "precision_at_k": 0.2,
+      "mrr": 1,
+      "ndcg_at_k": 1,
+      "duplicate_rate_at_k": 0
+    },
+    "database": {
+      "n": 9,
+      "hit_rate_at_k": 1,
+      "recall_at_k": 1,
+      "precision_at_k": 0.2,
+      "mrr": 0.9444444444444444,
+      "ndcg_at_k": 0.9589921948412731,
+      "duplicate_rate_at_k": 0
+    }
+  },
+  "by_language": {
+    "en": {
+      "n": 2,
+      "hit_rate_at_k": 1,
+      "recall_at_k": 1,
+      "precision_at_k": 0.2,
+      "mrr": 1,
+      "ndcg_at_k": 1,
+      "duplicate_rate_at_k": 0
+    },
+    "zh": {
+      "n": 12,
+      "hit_rate_at_k": 1,
+      "recall_at_k": 1,
+      "precision_at_k": 0.2,
+      "mrr": 0.9583333333333334,
+      "ndcg_at_k": 0.9692441461309548,
+      "duplicate_rate_at_k": 0
+    }
+  },
+  "failures": null
+}

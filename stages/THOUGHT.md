@@ -252,3 +252,13 @@ Middleware 的触发时机是**每次真实工具执行**，不是每轮模型�
 - 组合根装配顺序：`EinoRunner`（能力层）→ `PolicyAwareRunner`（请求级收口）。EinoRunner 内部仍保留一次同策略超时派生作为兜底；两层同时派生时先到者生效，语义一致。
 - Handler 映射：`ErrAgentTimeout` → 504 `agent_timeout`，`ErrAgentCancelled` → 499 `agent_cancelled`，让客户端能区分“失败”和“还没算完”。
 - 待验证（留给集成测试）：`FallbackAnswerWithoutTool` 在 Eino 路径下的可用范围——`Generate` 失败时能否拿到此前的 assistant 部分文本，决定降级回答是否真的存在。
+
+### Stage 05 收尾验证记录（2026-09-08）
+
+- `go test -tags integration ./internal/ai/retriever`：`TestESRetrieverEndToEnd`、`TestKnowledgeIngestorBulkThenRetrieve` 通过（真实 ES 8.18.8，含 `-race`）。
+- RAG 评估链路端到端跑通：三篇语料（redis-timeout / mysql-replication / elasticsearch-cluster，EMBEDDING_DIM=32 mock）导入 `pilot_knowledge` 后执行 `make rag-eval`，基线报告存于 `reports/rag-eval.json`：
+  - HitRate@5=1.00，Recall@5=1.00，Precision@5=0.20，MRR=0.96，nDCG@5=0.97，DuplicateRate@5=0.00，14 条查询 0 失败。
+  - 注意：评估集期望的 `doc_id` 与语料文件名严格一致（如 `elasticsearch-cluster`），导入时的 doc_id 必须对齐，否则表现为"检回但判失败"。
+  - 当前语料每篇只切出 1 个 chunk，Precision@5=0.20 主要是"语料太少、Top-5 全被同批文档占满"的必然结果；语料扩充后该指标才有调参意义。
+- 环境限制：`LLM_MODE=mock` 时 Agent 不组装，`POST /api/v1/agent/chat` 返回 503 `agent_unavailable`；真实模型的全链路验证（health_check → knowledge_search → 最终回答）需要 API key，本地仅能由 scripted model 集成测试覆盖工具链路。
+- 导入方式备忘：评估前需要把语料写入 ES；当前只能走 `POST /api/v1/knowledge/documents`（需全服务启动），后续计划给 `cmd/eval` 增加 `-import` 模式。
