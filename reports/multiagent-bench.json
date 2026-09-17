@@ -1,0 +1,80 @@
+{
+  "generated_at": "2026-09-16T03:44:07Z",
+  "note": "scripted model + stub tools; measures orchestration overhead, timeout rate, and degradation triggers (not LLM latency)",
+  "scenarios": [
+    {
+      "name": "complex_incident_both_branches",
+      "query": "订单集群大面积 5xx，多个服务连环超时",
+      "total": 100,
+      "concurrency": 20,
+      "errors": 0,
+      "avg_ms": 0.15662162999999998,
+      "p50_ms": 0.096917,
+      "p95_ms": 0.516458,
+      "max_ms": 1.089334,
+      "limitations": {},
+      "evidence_calls": 100,
+      "knowledge_calls": 100
+    },
+    {
+      "name": "simple_incident_knowledge_only",
+      "query": "订单服务接口变慢",
+      "total": 100,
+      "concurrency": 20,
+      "errors": 0,
+      "avg_ms": 0.07844339,
+      "p50_ms": 0.038958,
+      "p95_ms": 0.250875,
+      "max_ms": 0.380542,
+      "limitations": {},
+      "evidence_calls": 0,
+      "knowledge_calls": 100
+    },
+    {
+      "name": "evidence_branch_timeout",
+      "query": "订单集群大面积 5xx，多个服务连环超时",
+      "total": 100,
+      "concurrency": 20,
+      "errors": 0,
+      "avg_ms": 100.93513877,
+      "p50_ms": 101.103834,
+      "p95_ms": 101.246708,
+      "max_ms": 101.293875,
+      "limitations": {
+        "EVIDENCE_BRANCH_FAILED": 100
+      },
+      "evidence_calls": 100,
+      "knowledge_calls": 100
+    },
+    {
+      "name": "classify_timeout_rule_fallback",
+      "query": "订单集群大面积 5xx，多个服务连环超时",
+      "total": 100,
+      "concurrency": 20,
+      "errors": 0,
+      "avg_ms": 3001.221965900001,
+      "p50_ms": 3001.205875,
+      "p95_ms": 3001.504917,
+      "max_ms": 3001.79,
+      "limitations": {},
+      "evidence_calls": 100,
+      "knowledge_calls": 100
+    },
+    {
+      "name": "synthesis_citation_missing",
+      "query": "订单集群大面积 5xx，多个服务连环超时",
+      "total": 100,
+      "concurrency": 20,
+      "errors": 0,
+      "avg_ms": 0.12806704999999996,
+      "p50_ms": 0.110833,
+      "p95_ms": 0.269917,
+      "max_ms": 0.339,
+      "limitations": {
+        "EVIDENCE_CITATION_MISSING": 100
+      },
+      "evidence_calls": 100,
+      "knowledge_calls": 100
+    }
+  ]
+}
