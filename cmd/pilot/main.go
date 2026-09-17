@@ -84,6 +84,9 @@ func run() error {
 	mux.HandleFunc("POST /api/v1/chat/stream", chatHandler.Stream)
 	agentHandler := handler.NewAgentHandler(rt.agent)
 	mux.HandleFunc("POST /api/v1/agent/chat", agentHandler.Run)
+	// 多代理编排入口：与单代理共用 AgentHandler 的契约与错误映射。
+	teamHandler := handler.NewAgentHandler(rt.teamAgent)
+	mux.HandleFunc("POST /api/v1/agent/team/chat", teamHandler.Run)
 	knowledgeHandler := handler.NewKnowledgeHandler(rt.knowledge)
 	mux.HandleFunc("POST /api/v1/knowledge/documents", knowledgeHandler.Upload)
 

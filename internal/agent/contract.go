@@ -28,6 +28,22 @@ type AgentResponse struct {
 	ToolCalls   []ToolCall `json:"tool_calls,omitempty"`
 	Usage       ai.Usage   `json:"usage"`
 	Limitations []string   `json:"limitations,omitempty"`
+	// Intent 与 Findings 由多代理编排器填充；单代理 ReAct 路径留空。
+	Intent   string    `json:"intent,omitempty"`
+	Findings []Finding `json:"findings,omitempty"`
+	// TaskID 是多代理编排的任务标识（会话+查询派生），断点续跑与审计定位用；单代理路径留空。
+	TaskID string `json:"task_id,omitempty"`
+	// Complexity 是排障类意图的复杂度分级（simple|complex），说明本次分支扇出的依据；非排障意图留空。
+	Complexity string `json:"complexity,omitempty"`
+}
+
+// Finding 是多代理编排中一个分支产出的证据条目。
+// ID 在分支汇合后按固定角色顺序统一分配（F1..Fn），供综合阶段引用与引用校验使用。
+type Finding struct {
+	ID      string `json:"id"`
+	Role    string `json:"role"`
+	Source  string `json:"source,omitempty"`
+	Summary string `json:"summary"`
 }
 
 // ToolCall 是一次工具执行记录。
@@ -153,9 +169,6 @@ func (p AgentPolicy) Normalize() AgentPolicy {
 	}
 	if p.Budget.MaxArgumentsBytes == 0 {
 		p.Budget.MaxArgumentsBytes = defaultMaxArgumentsBytes
-	}
-	if p.Repeat.MaxConsecutiveFailures == 0 {
-		p.Repeat.MaxConsecutiveFailures = defaultMaxConsecutiveFailures
 	}
 	if p.Repeat.MaxConsecutiveFailures == 0 {
 		p.Repeat.MaxConsecutiveFailures = defaultMaxConsecutiveFailures
