@@ -84,6 +84,19 @@ ES 索引 `pilot_knowledge` 中每个 chunk 是一个 document，至少包含 `d
 
 模型连续生成相同调用不是瞬时重试。瞬时错误的指数退避只能发生在工具执行器内部，次数、最大等待和剩余 deadline 都必须受策略限制。前置工具失败时，依赖它的工具不得继续执行；响应的 `limitations` 必须说明跳过原因。
 
+### 4.1 多代理排障编排（internal/multiagent，已实现）
+
+多代理与单代理实现同一个 `agent.Runner` 契约，共用 `PolicyAwareRunner` 的请求级超时/取消/降级语义与 `AgentHandler` 的错误映射（`/api/v1/agent/team/chat`）。
+
+链路：**分诊 → 分级调度 → 并行分支 → 断点续跑 → 综合 → 引用校验**。
+
+- 分诊（HybridPlanner）：规则基线永远先算；LLM 单次分类（3s 独立超时）输出 intent + confidence + complexity；失败回退规则，confidence<0.6 加宽为双分支并按 complex 处理。
+- 分级调度：simple 排障（单服务、症状明确）只跑知识分支（低精度先行）；complex（级联/影响面大）与未知意图双分支全跑。复杂度解析缺失或非法一律 complex（安全侧）。
+- 分支：evidence=health_check（运行证据）、knowledge=knowledge_search（文档知识），异构证据采集而非竞争结论；goroutine+WaitGroup 槽位写，分支超时 10s 只损失单分支（记 limitation），互不取消。
+- 断点续跑：任务快照（plan+已完成分支证据）存 Redis JSON，TTL 5 分钟；只有 running 且未超窗口的快照可续跑，终态主动删除 + TTL 兜底；任务 ID=SHA-256(session+query)。快照层故障降级为一次性全量执行，不阻断请求。
+- 综合与引用校验：单次模型调用（15s），结论必须引用证据编号 [F1..Fn]，否则丢弃换确定性摘要——这是"结论与证据冲突"的防线；同构竞争分支的结论仲裁为预留设计（AI-ENHANCEMENT EX-6），暂不实现。
+- mock 模式：编排换用确定性 ScriptedModel 走完全相同路径，本地无 API Key 可端到端验证；单代理 ReAct 需要真实 tool-calling 模型，mock 下仍不组装。
+
 ## 5. 审计与错误回退
 
 每次工具调用记录一个 `agent.ToolCall`：`Name`、经过大小限制的 `Arguments`、`Step`、`Status`、安全错误摘要和耗时。参数中可能包含密钥时必须脱敏；原始供应商错误只写日志，不直接返回客户端。
@@ -95,6 +108,8 @@ ES 索引 `pilot_knowledge` 中每个 chunk 是一个 document，至少包含 `d
 - 超时/取消优先返回 cancellation/timeout 语义，不被普通工具错误覆盖。
 
 `AgentResponse` 返回 `Answer`、`ToolCalls`、`Usage` 和 `Limitations`。后续可把审计异步写入独立事件表，但不能阻塞最终回答的主路径。
+
+当前 Eino Runner 已统一处理请求级错误：策略 deadline 映射为稳定的 timeout 语义，上层取消映射为 cancelled 语义，其他模型/工具错误交给 `FallbackPolicy` 收口。Eino 目前无法可靠提供工具失败前的部分 assistant 文本，因此 `FallbackAnswerWithoutTool` 只有在已有非空答案时才会返回成功；没有可用文本时仍返回错误，避免伪造答案。
 
 ## 6. 手写优先级与框架边界
 

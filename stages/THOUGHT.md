@@ -234,6 +234,7 @@ Agent 的一次模型响应可能包含多个 Tool Call。Eino 当前配置为�
 - 已完成单次 Run 内的重复失败保护：使用工具名和规范化 JSON 参数的 SHA-256 指纹；成功调用清除该指纹的失败计数，达到阈值后后续调用标记为 `rejected`。
 - 预算预占、失败计数和拒绝审计均由短粒度互斥锁保护，真实 Tool 的 `next` 执行不持锁；并发行为已通过 `go test -race` 验证。
 - 这仍不是跨请求共享的 Circuit Breaker。跨请求熔断需要独立状态、半开探测和实例间协调，暂不纳入本切片。
+- 已接入请求级错误收口：策略超时和上层取消分别映射为稳定的 `ErrAgentTimeout`/`ErrAgentCancelled`；普通 Eino 错误保留底层原因并写入 `limitations`。当前没有可靠的部分 assistant 文本，因此无文本时不会强行执行“无工具回答”回退。
 
 ### 三种执行粒度与 PolicyAwareRunner（已实现）
 
@@ -262,3 +263,14 @@ Middleware 的触发时机是**每次真实工具执行**，不是每轮模型�
   - 当前语料每篇只切出 1 个 chunk，Precision@5=0.20 主要是"语料太少、Top-5 全被同批文档占满"的必然结果；语料扩充后该指标才有调参意义。
 - 环境限制：`LLM_MODE=mock` 时 Agent 不组装，`POST /api/v1/agent/chat` 返回 503 `agent_unavailable`；真实模型的全链路验证（health_check → knowledge_search → 最终回答）需要 API key，本地仅能由 scripted model 集成测试覆盖工具链路。
 - 导入方式备忘：评估前需要把语料写入 ES；当前只能走 `POST /api/v1/knowledge/documents`（需全服务启动），后续计划给 `cmd/eval` 增加 `-import` 模式。
+
+### 多代理编排增强：分级调度、断点续跑与微基准（2026-09-16）
+
+压力面复盘（`面试经历/01`）暴露的三个差距在同一切片内补齐：
+
+- **复杂度分级调度**（`planner.go`）：`PlanResult` 新增 `Complexity`（simple/complex）。规则层用级联关键词（集群/大面积/雪崩/连环）打标，LLM 分类在同一个 JSON 里输出；解析缺失或非法一律按 complex（安全侧）。路由变化：simple 排障只跑知识分支（低精度先行），complex/未知意图双分支全跑。这是"意图分诊裁剪 + 复杂度分级裁剪"的第二级。
+- **断点续跑**（`taskstate.go` + `orchestrator.go`）：分支汇合后、综合前写任务快照（Redis JSON，TTL 5 分钟，`DefaultSnapshotTTL`）。快照带状态机（running/succeeded/failed）与 `StartedAt` 时间戳：只有 running 且未超窗口的快照允许续跑，终态快照主动删除（TTL 兜底），失败重试读旧状态的窗口被时间戳校验关死。续跑复用已完成分支的证据、只补跑缺失分支；快照层故障只降级记日志，不阻断请求——快照是恢复优化，不是正确性依赖。任务 ID 由会话+查询 SHA-256 派生，天然隔离。
+- **微基准**（`cmd/bench`）：固定五场景 × 100 请求 × 20 并发，脚本模型 + 桩工具隔离 LLM 与外部依赖。报告 `reports/multiagent-bench.json`：编排开销亚毫秒（p50 0.04–0.10ms）；simple 扇出 1.0 vs complex 2.0；分支超时场景 limitation 100% 触发、0 请求失败（隔离有效）；分类超时场景按 3s 预算回退规则；引用缺失场景 100% 走确定性摘要。
+- **mock 模式闭环**：`buildTeamAgent` 在 mock 模式换用 `multiagent.ScriptedModel`（确定性脚本模型，走完全相同的编排路径），`POST /api/v1/agent/team/chat` 本地可端到端验证。注意这与单代理不同：ReAct 需要真实 tool-calling 模型，mock 下仍不组装（503）。
+- 已知边界：`ALLOW_DEGRADED` 配置已加载但主入口启动检查未消费，是既有欠账。
+- HTTP 全链路已补验（2026-09-16，真实 LLM=doubao/ark + Compose 依赖）：happy path（simple 分级单分支 + 引用综合，零降级，端到端 ~17s）、分类 3s 超时回退规则、综合超时降级、引用校验真实拦截（5 次综合 2 次未带编号）、运行中快照写入与终态删除（key 后缀 == 响应 task_id）均实测通过。真实模型观察：doubao 分类与规则基线有分歧（明显故障判 general，安全侧双分支兜住）；检索质量受 mock embedder 限制。详见 `面试经历/02` §1。
