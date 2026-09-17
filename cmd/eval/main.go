@@ -5,7 +5,12 @@
 //
 // 示例：
 //
+//	# 纯 RRF 基线
 //	go run ./cmd/eval -dataset testdata/rag/eval/queries.jsonl -k 5 -out reports/rag-eval.json
+//	# 评估前重新导入语料（保证评估可复现）
+//	go run ./cmd/eval -import testdata/rag/corpus -out reports/rag-eval.json
+//	# LLM listwise 精排对比实验（需要 LLM_MODE=eino|openai 与 LLM_API_KEY）
+//	go run ./cmd/eval -import testdata/rag/corpus -rerank -out reports/rag-eval-rerank.json
 package main
 
 import (
@@ -15,8 +20,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
+	"Pilot/internal/ai"
+	einoadapter "Pilot/internal/ai/eino"
 	"Pilot/internal/ai/embedder"
 	"Pilot/internal/ai/retriever"
 	"Pilot/internal/eval"
@@ -38,6 +48,8 @@ func run() error {
 	out := flag.String("out", "", "path to write JSON report (default: stdout)")
 	k := flag.Int("k", 5, "top-K for retrieval")
 	timeout := flag.Duration("timeout", 5*time.Second, "per-query retrieval timeout")
+	importDir := flag.String("import", "", "ingest a corpus directory (*.md) into ES before evaluating, e.g. testdata/rag/corpus")
+	rerank := flag.Bool("rerank", false, "wrap retrieval with LLM listwise rerank (requires LLM_MODE=eino|openai)")
 	flag.Parse()
 
 	_ = envloader.Load(".env")
@@ -48,6 +60,9 @@ func run() error {
 		return fmt.Errorf("load dataset: %w", err)
 	}
 	slog.Info("eval dataset loaded", "path", *ds, "queries", len(queries))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(len(queries)+10)*time.Minute)
+	defer cancel()
 
 	esConfig := retriever.ESConfig{
 		Addresses:      []string{cfg.ES.URL},
@@ -70,13 +85,30 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("create retriever: %w", err)
 	}
+	if *importDir != "" {
+		docs, chunks, err := importCorpus(ctx, esConfig, em, *importDir)
+		if err != nil {
+			return fmt.Errorf("import corpus: %w", err)
+		}
+		slog.Info("corpus imported", "dir", *importDir, "documents", docs, "chunks", chunks)
+	}
 
-	runner, err := eval.NewRunner(searcher, *timeout)
+	// 精排作为装饰器接入评估链路：评估器只看 ai.Retriever 接口，
+	// 是否精排对指标计算完全透明。
+	var evalRetriever ai.Retriever = searcher
+	if *rerank {
+		chatModel, err := newEvalChatModel(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		evalRetriever = mustDecorate(searcher, chatModel)
+		slog.Info("rerank enabled", "mode", "llm_listwise")
+	}
+
+	runner, err := eval.NewRunner(evalRetriever, *timeout)
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(len(queries)+10)*time.Minute)
-	defer cancel()
 	ev, err := runner.Evaluate(ctx, queries, *k)
 	if err != nil {
 		return fmt.Errorf("evaluate: %w", err)
@@ -107,6 +139,97 @@ func run() error {
 	}
 	printSummary(report)
 	return nil
+}
+
+// importCorpus 把目录下的 Markdown 文档导入 ES 索引，保证评估可复现：
+// docID 取文件名去扩展名（必须与评估集 expected 的 doc_id 严格一致），
+// 分类按文件名前缀映射，标题取首个一级标题，缺省用文件名。
+func importCorpus(ctx context.Context, esConfig retriever.ESConfig, em *embedder.MockEmbedder, dir string) (int, int, error) {
+	store, err := retriever.NewESStore(ctx, esConfig, em.Dim())
+	if err != nil {
+		return 0, 0, fmt.Errorf("create es store: %w", err)
+	}
+	ingestor, err := retriever.NewIngestor(store, em, "mock", 1800, 200)
+	if err != nil {
+		return 0, 0, fmt.Errorf("create ingestor: %w", err)
+	}
+	paths, err := filepath.Glob(filepath.Join(dir, "*.md"))
+	if err != nil {
+		return 0, 0, err
+	}
+	sort.Strings(paths)
+	docs, chunks := 0, 0
+	for _, path := range paths {
+		docID := strings.TrimSuffix(filepath.Base(path), ".md")
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return docs, chunks, err
+		}
+		inserted, err := ingestor.Ingest(ctx, retriever.KnowledgeDocument{
+			DocID:    docID,
+			Title:    firstHeading(string(content), docID),
+			Content:  string(content),
+			Category: categoryForDocID(docID),
+			Version:  1,
+			Source:   path,
+		})
+		if err != nil {
+			return docs, chunks, fmt.Errorf("ingest %s: %w", docID, err)
+		}
+		docs++
+		chunks += len(inserted)
+	}
+	return docs, chunks, nil
+}
+
+// firstHeading 提取 Markdown 首个一级标题作为文档标题。
+func firstHeading(content, fallback string) string {
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
+		}
+	}
+	return fallback
+}
+
+// categoryForDocID 按文件名前缀映射分类，与评估集的 category 保持一致。
+func categoryForDocID(docID string) string {
+	switch {
+	case strings.HasPrefix(docID, "redis"):
+		return "cache"
+	case strings.HasPrefix(docID, "mysql"), strings.HasPrefix(docID, "es"), strings.HasPrefix(docID, "elasticsearch"):
+		return "database"
+	default:
+		return "general"
+	}
+}
+
+// newEvalChatModel 为精排构造真实模型客户端。mock 模式直接报错：
+// 避免"看起来在评估精排、实际全是 RRF 基线"的假对比。
+func newEvalChatModel(ctx context.Context, cfg configutil.Config) (ai.ChatModel, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.LLM.Mode)) {
+	case "eino", "openai":
+		return einoadapter.NewChatModel(ctx, einoadapter.Config{
+			APIKey:      cfg.LLM.APIKey,
+			BaseURL:     cfg.LLM.BaseURL,
+			Model:       cfg.LLM.Model,
+			Temperature: cfg.LLM.Temperature,
+			MaxTokens:   cfg.LLM.MaxTokens,
+			Timeout:     cfg.LLM.Timeout,
+		})
+	default:
+		return nil, fmt.Errorf("rerank requires a real LLM: set LLM_MODE=eino|openai with LLM_API_KEY (current mode %q)", cfg.LLM.Mode)
+	}
+}
+
+func mustDecorate(searcher ai.Retriever, chatModel ai.ChatModel) ai.Retriever {
+	decorated, err := retriever.NewRerankedRetriever(searcher, retriever.NewLLMReranker(chatModel, nil), retriever.RerankConfig{})
+	if err != nil {
+		// 参数全部来自已校验的构造产物，这里失败只可能是编程错误。
+		panic(fmt.Sprintf("decorate retriever with reranker: %v", err))
+	}
+	return decorated
 }
 
 // printSummary 把摘要写到 stderr，保持 stdout 只输出机器可读 JSON。

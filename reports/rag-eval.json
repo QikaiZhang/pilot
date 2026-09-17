@@ -3,36 +3,36 @@
   "embedder": "mock",
   "index": "pilot_knowledge",
   "dataset": "testdata/rag/eval/queries.jsonl",
-  "generated_at": "2026-09-08T15:25:46Z",
-  "total": 14,
-  "hit_count": 14,
+  "generated_at": "2026-09-16T04:51:29Z",
+  "total": 20,
+  "hit_count": 19,
   "errors": 0,
   "overall": {
-    "n": 14,
-    "hit_rate_at_k": 1,
-    "recall_at_k": 1,
-    "precision_at_k": 0.2,
-    "mrr": 0.9642857142857143,
-    "ndcg_at_k": 0.9736378395408184,
+    "n": 20,
+    "hit_rate_at_k": 0.95,
+    "recall_at_k": 0.9130434782608695,
+    "precision_at_k": 0.21,
+    "mrr": 0.6950000000000001,
+    "ndcg_at_k": 0.7526750086151346,
     "duplicate_rate_at_k": 0
   },
   "by_category": {
     "cache": {
-      "n": 5,
+      "n": 7,
       "hit_rate_at_k": 1,
-      "recall_at_k": 1,
+      "recall_at_k": 0.875,
       "precision_at_k": 0.2,
-      "mrr": 1,
-      "ndcg_at_k": 1,
+      "mrr": 0.6,
+      "ndcg_at_k": 0.6766866398069903,
       "duplicate_rate_at_k": 0
     },
     "database": {
-      "n": 9,
-      "hit_rate_at_k": 1,
-      "recall_at_k": 1,
-      "precision_at_k": 0.2,
-      "mrr": 0.9444444444444444,
-      "ndcg_at_k": 0.9589921948412731,
+      "n": 13,
+      "hit_rate_at_k": 0.9230769230769231,
+      "recall_at_k": 0.9333333333333333,
+      "precision_at_k": 0.2153846153846154,
+      "mrr": 0.7461538461538461,
+      "ndcg_at_k": 0.7935918225887507,
       "duplicate_rate_at_k": 0
     }
   },
@@ -42,19 +42,66 @@
       "hit_rate_at_k": 1,
       "recall_at_k": 1,
       "precision_at_k": 0.2,
-      "mrr": 1,
-      "ndcg_at_k": 1,
+      "mrr": 0.75,
+      "ndcg_at_k": 0.8154648767857287,
       "duplicate_rate_at_k": 0
     },
     "zh": {
-      "n": 12,
-      "hit_rate_at_k": 1,
-      "recall_at_k": 1,
-      "precision_at_k": 0.2,
-      "mrr": 0.9583333333333334,
-      "ndcg_at_k": 0.9692441461309548,
+      "n": 18,
+      "hit_rate_at_k": 0.9444444444444444,
+      "recall_at_k": 0.9047619047619048,
+      "precision_at_k": 0.2111111111111111,
+      "mrr": 0.6888888888888889,
+      "ndcg_at_k": 0.7456983565961797,
       "duplicate_rate_at_k": 0
     }
   },
-  "failures": null
+  "failures": [
+    {
+      "id": "mysql-replication-03",
+      "query": "SHOW REPLICA STATUS 里哪些字段要看",
+      "hit": false,
+      "retrieved": [
+        {
+          "rank": 0,
+          "doc_id": "es-slow-query",
+          "chunk_id": "2ad891f187b83c1c159c6842",
+          "score": 0.03225806451612903
+        },
+        {
+          "rank": 1,
+          "doc_id": "elasticsearch-cluster",
+          "chunk_id": "41465c95b5e9f64005a58c89",
+          "score": 0.03149801587301587
+        },
+        {
+          "rank": 2,
+          "doc_id": "mysql-slow-query",
+          "chunk_id": "64c4f7d14ec908d365b81e04",
+          "score": 0.03125763125763126
+        },
+        {
+          "rank": 3,
+          "doc_id": "redis-timeout",
+          "chunk_id": "fb93c3e9b62b615811957c69",
+          "score": 0.031009615384615385
+        },
+        {
+          "rank": 4,
+          "doc_id": "redis-memory-eviction",
+          "chunk_id": "e0db84972b5f88bc956a5e5d",
+          "score": 0.01639344262295082
+        },
+        {
+          "rank": 5,
+          "doc_id": "mysql-replication",
+          "chunk_id": "327635ac605736b4764e51c1",
+          "score": 0.01639344262295082
+        }
+      ],
+      "latency_ms": {
+        "total_ms": 7
+      }
+    }
+  ]
 }

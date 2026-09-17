@@ -159,3 +159,10 @@ type Embedder interface {
 type Retriever interface {
 	Retrieve(ctx context.Context, query string, topK int) ([]Chunk, error)
 }
+
+// Reranker 用更重的模型对召回候选做精排，按与 query 的相关性重新排序。
+// 它只负责重排这一件事：输入候选集合，输出同一集合的一个排列；
+// 截断（topK 语义）与失败降级策略由装饰它的调用方决定，Reranker 自身不截断。
+type Reranker interface {
+	Rerank(ctx context.Context, query string, candidates []Chunk) ([]Chunk, error)
+}
