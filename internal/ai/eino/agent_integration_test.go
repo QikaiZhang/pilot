@@ -3,6 +3,7 @@ package eino
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,21 @@ import (
 type scriptedToolCallingModel struct {
 	responses []*schema.Message
 	inputs    [][]*schema.Message
+}
+
+type contextEndingModel struct{}
+
+func (contextEndingModel) Generate(ctx context.Context, _ []*schema.Message, _ ...model.Option) (*schema.Message, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (contextEndingModel) Stream(context.Context, []*schema.Message, ...model.Option) (*schema.StreamReader[*schema.Message], error) {
+	return schema.StreamReaderFromArray([]*schema.Message{}), nil
+}
+
+func (m contextEndingModel) WithTools([]*schema.ToolInfo) (model.ToolCallingChatModel, error) {
+	return m, nil
 }
 
 func (m *scriptedToolCallingModel) Generate(_ context.Context, input []*schema.Message, _ ...model.Option) (*schema.Message, error) {
@@ -143,5 +159,63 @@ func TestEinoReActSoftRejectsOversizedToolArguments(t *testing.T) {
 	}
 	if len(response.ToolCalls) != 1 || response.ToolCalls[0].Status != projectagent.ToolCallRejected {
 		t.Fatalf("tool audit = %+v, want one rejected call", response.ToolCalls)
+	}
+}
+
+func TestEinoRunnerMapsPolicyTimeoutToStableError(t *testing.T) {
+	registry, err := projecttools.NewRegistry(&integrationTool{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := projectagent.AgentPolicy{
+		Execution:    projectagent.ExecutionPolicy{MaxSteps: 2, Timeout: 10 * time.Millisecond},
+		Budget:       projectagent.BudgetPolicy{MaxToolCalls: 2, MaxArgumentsBytes: 100},
+		AllowedTools: []string{"health_check"},
+		Fallback:     projectagent.FallbackPolicy{Mode: projectagent.FallbackReturnError},
+	}
+	einoAgent, err := NewReActAgent(context.Background(), contextEndingModel{}, registry, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := NewEinoRunner(einoAgent, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := runner.Run(context.Background(), projectagent.AgentRequest{UserID: "u1", SessionID: "s1", Query: "检查依赖"})
+	if !errors.Is(err, projectagent.ErrAgentTimeout) {
+		t.Fatalf("Run() error = %v, want ErrAgentTimeout", err)
+	}
+	if len(response.Limitations) != 1 || response.Limitations[0] != "agent execution timed out" {
+		t.Fatalf("limitations = %+v", response.Limitations)
+	}
+}
+
+func TestEinoRunnerPreservesParentCancellation(t *testing.T) {
+	registry, err := projecttools.NewRegistry(&integrationTool{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := projectagent.AgentPolicy{
+		Execution:    projectagent.ExecutionPolicy{MaxSteps: 2, Timeout: time.Second},
+		Budget:       projectagent.BudgetPolicy{MaxToolCalls: 2, MaxArgumentsBytes: 100},
+		AllowedTools: []string{"health_check"},
+		Fallback:     projectagent.FallbackPolicy{Mode: projectagent.FallbackReturnError},
+	}
+	einoAgent, err := NewReActAgent(context.Background(), contextEndingModel{}, registry, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := NewEinoRunner(einoAgent, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	response, err := runner.Run(ctx, projectagent.AgentRequest{UserID: "u1", SessionID: "s1", Query: "检查依赖"})
+	if !errors.Is(err, projectagent.ErrAgentCancelled) {
+		t.Fatalf("Run() error = %v, want ErrAgentCancelled", err)
+	}
+	if len(response.Limitations) != 1 || response.Limitations[0] != "agent execution was cancelled" {
+		t.Fatalf("limitations = %+v", response.Limitations)
 	}
 }
