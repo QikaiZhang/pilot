@@ -15,6 +15,7 @@
 | MySQL | 3306 | 长期历史 |
 | Elasticsearch | 9200 | 知识库和运行日志 |
 | Prometheus | 9090 | 指标查询 |
+| Grafana | 3000 | 指标 Dashboard |
 | Jaeger UI | 16686 | Trace 查询 |
 | Jaeger OTLP gRPC | 4317 | Trace 上报 |
 

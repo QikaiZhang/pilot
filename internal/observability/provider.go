@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -62,6 +63,7 @@ func New(ctx context.Context, cfg Config) (*Provider, error) {
 	if !cfg.Enabled || cfg.OTLPExportEndpoint == "" {
 		return provider, nil
 	}
+	normalizeOTLPEnvironment(cfg.OTLPInsecure)
 
 	endpoint := cfg.OTLPExportEndpoint
 	if !strings.Contains(endpoint, "://") {
@@ -112,6 +114,22 @@ func normalizeSampleRatio(ratio float64) float64 {
 		return 1
 	}
 	return ratio
+}
+
+func normalizeOTLPEnvironment(insecure bool) {
+	scheme := "https"
+	if insecure {
+		scheme = "http"
+	}
+	for _, key := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"} {
+		value, ok := os.LookupEnv(key)
+		if !ok || value == "" || strings.Contains(value, "://") {
+			continue
+		}
+		// OTel's environment parser expects a URL. The project config accepts
+		// host:port for local ergonomics, so normalize it before exporter init.
+		_ = os.Setenv(key, scheme+"://"+value)
+	}
 }
 
 // Registry 返回本 provider 的 Prometheus registry，避免污染默认全局 registry。

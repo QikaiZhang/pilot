@@ -1,8 +1,8 @@
 # Stage 06：Prometheus + OpenTelemetry + Jaeger 可观测性闭环规格
 
-状态：P0/P1 应用接线和 P2 Compose 核心依赖故障演练已完成，告警规则与 Grafana 交付待补。
+状态：P0/P1 应用接线、P2 Compose 核心依赖故障演练、P3 告警规则与 Grafana Dashboard 已完成。
 
-这份规格解决当前最明显的断点：`manifest/docker-compose.yml` 已声明 Prometheus 与 Jaeger，P0/P1 已在根模块注册 `/metrics`、HTTP 观测中间件、OpenTelemetry SDK、OTLP exporter 和业务子 Span；P2 已用 Compose 完成核心依赖故障演练，告警规则和 Grafana 仍待补。
+这份规格解决当前最明显的断点：`manifest/docker-compose.yml` 已声明 Prometheus、Jaeger 和 Grafana，P0/P1 已在根模块注册 `/metrics`、HTTP 观测中间件、OpenTelemetry SDK、OTLP exporter 和业务子 Span；P2/P3 已完成核心依赖故障演练、告警规则和 Dashboard provisioning。
 
 ## 1. 先把三个概念讲清楚
 
@@ -151,12 +151,18 @@ OTEL_EXPORT_TIMEOUT=5s
 3. 增加 Grafana dashboard（请求量、错误率、p95、Agent 工具失败、依赖延迟、token 成本）。
 4. 增加故障演练：停 ES、停 Redis、OTLP exporter 不可达、客户端中断 SSE。
 
-### P2：企业化治理与集成验收
+### P2：企业化治理与集成验收（核心故障演练已完成）
 
 1. 采样、队列上限、批量导出、shutdown flush deadline，防止观测拖垮业务。
 2. 指标 cardinality review、日志留存与脱敏、Trace 访问控制和数据保留策略。
 3. CI 运行单测、`go vet`、Compose smoke、指标断言、Trace 至少存在 root span 的集成测试。
 4. 把告警、Runbook、修复 PR、回归测试链接到同一故障记录，形成可审计闭环。
+
+### P3：告警和可视化（已完成）
+
+1. `manifest/prometheus/alerts.yml` 提供 HTTP 5xx、p95、scrape unavailable 和 readiness unavailable 告警。
+2. Grafana 使用 provisioning 自动注册 Prometheus datasource 和 Pilot Overview dashboard，避免手工点击配置。
+3. Dashboard 只引用低基数业务指标，生产环境仍需按团队 SLO 调整阈值、联系人和通知渠道。
 
 ## 7. 可复制验收命令
 
@@ -197,4 +203,4 @@ docker compose -f manifest/docker-compose.yml start elasticsearch
 
 ## 9. 面试表达边界
 
-当前阶段应说：“我已经把观测闭环拆成指标、Trace、日志三层，应用侧 P0/P1 已接入 `/metrics`、HTTP root span、Agent/Tool/Memory/Retriever 子 Span 和脱敏日志关联；下一步用 Compose 在 Prometheus 和 Jaeger 中验收，并补告警与故障演练。”完成 P2 后再补充真实查询结果和故障恢复证据。
+当前阶段应说：“我已经把观测闭环拆成指标、Trace、日志三层，应用侧 P0/P1 已接入 `/metrics`、HTTP root span、Agent/Tool/Memory/Retriever 子 Span 和脱敏日志关联；P2/P3 用 Compose 验证了 Prometheus target、Jaeger Trace、核心依赖故障恢复，并通过 provisioning 提供告警规则和 Grafana Dashboard。”

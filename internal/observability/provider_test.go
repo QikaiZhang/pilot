@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 )
@@ -21,6 +22,18 @@ func TestNormalizeSampleRatio(t *testing.T) {
 				t.Fatalf("normalizeSampleRatio(%v) = %v, want %v", test.in, got, test.want)
 			}
 		})
+	}
+}
+
+func TestNormalizeOTLPEnvironment(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "127.0.0.1:4317")
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "collector:4317")
+	normalizeOTLPEnvironment(true)
+	if got := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); got != "http://127.0.0.1:4317" {
+		t.Fatalf("OTEL endpoint = %q", got)
+	}
+	if got := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"); got != "http://collector:4317" {
+		t.Fatalf("OTEL traces endpoint = %q", got)
 	}
 }
 

@@ -383,3 +383,19 @@ Middleware 的触发时机是**每次真实工具执行**，不是每轮模型�
 ### 结论
 
 P0/P1 应用观测和 P2 本地 Compose 基础闭环通过。Grafana、告警规则、OTLP exporter 故障和 SSE 长连接专项演练列为后续增量，不阻塞当前 Jaeger/Prometheus 可见性目标。
+
+## Stage 06 P3：告警、Grafana 与 SSE 生命周期
+
+### 设计取舍
+
+- 告警规则放在 Prometheus file rule，便于版本控制、代码 review 和 CI 校验；通知联系人与生产阈值不写死在仓库。
+- Grafana 使用 provisioning 文件而不是手工导入，容器重建后 datasource 和 dashboard 仍可重复生成。
+- SSE 使用一条长生命周期 `chat.stream` Span，只有正常结束、取消、上游错误或持久化错误才结束，避免把一次流拆成无法关联的瞬时 Span。
+
+### 验证边界
+
+- 路由标签只允许固定模板，防止 URL 用户输入造成高基数。
+- 告警表达式依赖 `pilot_http_*` 指标；没有 Pilot target 时由 `PilotScrapeUnavailable` 告警负责暴露。
+- Grafana 使用本地默认密码仅供开发环境，生产必须通过 secret 注入并启用访问控制。
+
+验收结论：P3 代码和配置完成，Grafana 容器健康检查属于镜像拉取后的集成验证。

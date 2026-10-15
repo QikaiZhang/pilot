@@ -319,3 +319,19 @@
 
 - 未新增 Grafana dashboard 和告警规则；下一阶段可基于已有指标补 SLO recording rules。
 - 本次故障演练覆盖核心依赖可用性，OTLP exporter 不可达和 SSE 长连接取消仍需专门演练。
+
+## Stage 06 P3：告警、Grafana 与 SSE 生命周期
+
+### 新增能力
+
+- `manifest/prometheus/alerts.yml` 增加 HTTP 5xx、p95、scrape unavailable 和 readiness unavailable 告警。
+- Compose 增加 Grafana 11.2，自动 provisioning Prometheus datasource 和 Pilot Overview dashboard。
+- SSE 业务 Span 从流启动持续到正常 EOF、上游错误或客户端取消，避免只观测到“启动成功”。
+- 路由标签在外层 middleware 无法读取 ServeMux pattern 时使用固定路由白名单，未知路径归一为 `unknown`。
+
+### 验收结果
+
+- Compose 配置解析通过，Grafana dashboard JSON 可解析。
+- `go test ./...`、`go vet ./...` 通过。
+- Prometheus rules 使用低基数 Pilot 指标；Grafana panel 覆盖请求量、5xx 比例、p95 和 inflight。
+- SSE 生命周期逻辑通过现有 Chat/Handler 测试，待 Grafana 镜像拉取完成后补容器健康检查。

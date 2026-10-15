@@ -39,6 +39,7 @@ type serviceStream struct {
 	usage    ai.Usage
 	finished bool
 	closed   bool
+	span     *observability.Span
 }
 
 // Stream 启动一轮流式对话，返回层2业务流。
@@ -49,8 +50,13 @@ type serviceStream struct {
 //
 // assistant 消息不在这里保存，由 serviceStream 在正常 EOF 时保存，避免保存半截回复。
 func (s *Service) Stream(ctx context.Context, request TurnRequest) (stream EventStream, err error) {
-	ctx, span := observability.StartSpan(ctx, "chat.stream.setup")
-	defer func() { span.End(err) }()
+	ctx, span := observability.StartSpan(ctx, "chat.stream")
+	streamReady := false
+	defer func() {
+		if !streamReady {
+			span.End(err)
+		}
+	}()
 
 	normalized, err := normalizeTurn(request)
 	if err != nil {
@@ -79,14 +85,17 @@ func (s *Service) Stream(ctx context.Context, request TurnRequest) (stream Event
 		return nil, fmt.Errorf("start chat stream: %w", err)
 	}
 
-	return &serviceStream{
+	stream = &serviceStream{
 		ctx:      ctx,
 		upstream: upstream,
 		memory:   s.memory,
 		request:  request,
 		newID:    s.newID,
 		now:      s.now,
-	}, nil
+		span:     span,
+	}
+	streamReady = true
+	return stream, nil
 }
 
 // Recv 是「层1 -> 层2」转换的核心：每调用一次，要么返回一个业务事件，要么返回终止信号。
@@ -107,6 +116,7 @@ func (s *serviceStream) Recv() (StreamEvent, error) {
 	// 读取前先检查 context，客户端已断连则不再读底层流
 	if err := s.ctx.Err(); err != nil {
 		s.finished = true
+		s.endSpan(err)
 		_ = s.Close()
 		return StreamEvent{}, err
 	}
@@ -133,12 +143,14 @@ func (s *serviceStream) Recv() (StreamEvent, error) {
 		// 上游报错但 context 也取消了：优先按取消处理
 		if ctxErr := s.ctx.Err(); ctxErr != nil {
 			s.finished = true
+			s.endSpan(ctxErr)
 			_ = s.Close()
 			return StreamEvent{}, ctxErr
 		}
 
 		// 真正的供应商错误：不能保存半截回复，映射成用户可读的 error 事件并结束
 		s.finished = true
+		s.endSpan(err)
 		_ = s.Close()
 		return StreamEvent{
 			Type:  StreamEventError,
@@ -149,15 +161,18 @@ func (s *serviceStream) Recv() (StreamEvent, error) {
 
 // finish 处理层1正常 EOF：只有完整且非空时才保存 assistant，并返回一次 done。
 // 之后的下一次 Recv 会返回 io.EOF（依赖 finished=true）。
-func (s *serviceStream) finish() (StreamEvent, error) {
+func (s *serviceStream) finish() (event StreamEvent, err error) {
 	s.finished = true
 	// EOF 时若 context 已取消（如客户端刚断开），不保存回复
 	if err := s.ctx.Err(); err != nil {
+		s.endSpan(err)
 		_ = s.Close()
 		return StreamEvent{}, err
 	}
 	// 模型什么都没说：不写半截/空 assistant，返回业务错误事件
 	if strings.TrimSpace(s.content.String()) == "" {
+		err := errors.New("chat model returned an empty response")
+		s.endSpan(err)
 		_ = s.Close()
 		return StreamEvent{
 			Type:  StreamEventError,
@@ -168,6 +183,7 @@ func (s *serviceStream) finish() (StreamEvent, error) {
 	// 生成 assistant 消息 ID 并持久化完整内容
 	id, err := s.newID()
 	if err != nil {
+		s.endSpan(err)
 		_ = s.Close()
 		return StreamEvent{}, fmt.Errorf("generate assistant message id: %w", err)
 	}
@@ -180,11 +196,13 @@ func (s *serviceStream) finish() (StreamEvent, error) {
 		CreatedAt: s.now(),
 	}
 	if err := s.memory.SaveMessages(s.ctx, []memory.ChatMessage{assistant}); err != nil {
+		s.endSpan(err)
 		_ = s.Close()
 		return StreamEvent{}, fmt.Errorf("save assistant message: %w", err)
 	}
 
 	// 保存成功后才关闭底层流；返回 done 携带最终用量
+	s.endSpan(nil)
 	_ = s.Close()
 	usage := s.usage
 	return StreamEvent{Type: StreamEventDone, Usage: &usage}, nil
@@ -198,7 +216,23 @@ func (s *serviceStream) Close() error {
 	}
 	s.closed = true
 	if s.upstream == nil {
+		s.endSpan(s.ctx.Err())
 		return nil
 	}
-	return s.upstream.Close()
+	err := s.upstream.Close()
+	if err != nil {
+		s.endSpan(err)
+	} else {
+		s.endSpan(s.ctx.Err())
+	}
+	return err
+}
+
+func (s *serviceStream) endSpan(err error) {
+	if s == nil || s.span == nil {
+		return
+	}
+	span := s.span
+	s.span = nil
+	span.End(err)
 }

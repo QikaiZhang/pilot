@@ -1,0 +1,49 @@
+groups:
+  - name: pilot-slo
+    interval: 30s
+    rules:
+      - alert: PilotHighHTTPErrorRate
+        expr: |
+          sum by (route) (rate(pilot_http_requests_total{status_class="5xx"}[5m]))
+            /
+          clamp_min(sum by (route) (rate(pilot_http_requests_total[5m])), 1) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: pilot
+        annotations:
+          summary: "Pilot HTTP error rate is high"
+          description: "Route {{ $labels.route }} has more than 5% HTTP 5xx responses for 5 minutes."
+
+      - alert: PilotHighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (route, le) (rate(pilot_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: pilot
+        annotations:
+          summary: "Pilot p95 HTTP latency is high"
+          description: "Route {{ $labels.route }} p95 latency is above one second for 5 minutes."
+
+      - alert: PilotScrapeUnavailable
+        expr: up{job="pilot"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: pilot
+        annotations:
+          summary: "Prometheus cannot scrape Pilot"
+          description: "The Pilot Prometheus target has been unavailable for 2 minutes."
+
+      - alert: PilotReadinessUnavailable
+        expr: |
+          sum(rate(pilot_http_requests_total{route="GET /api/v1/health/ready",status_class="5xx"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: pilot
+        annotations:
+          summary: "Pilot readiness checks are failing"
+          description: "The readiness endpoint has returned 5xx responses for 2 minutes."
