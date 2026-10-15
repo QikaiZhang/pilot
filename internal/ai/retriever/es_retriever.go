@@ -10,6 +10,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 
 	"Pilot/internal/ai"
+	"Pilot/internal/observability"
 )
 
 // ESRetriever 实现 ai.Retriever：对 query 同时做关键词（BM25）与向量（kNN）
@@ -85,7 +86,10 @@ func NewESRetriever(client *elasticsearch.Client, index string, embedder ai.Embe
 }
 
 // Retrieve 执行混合召回。返回的片段按融合分降序；空召回返回空切片而非错误。
-func (r *ESRetriever) Retrieve(ctx context.Context, query string, topK int) ([]ai.Chunk, error) {
+func (r *ESRetriever) Retrieve(ctx context.Context, query string, topK int) (chunks []ai.Chunk, err error) {
+	ctx, span := observability.StartSpan(ctx, "retriever.elasticsearch")
+	defer func() { span.End(err) }()
+
 	if r == nil || r.client == nil {
 		return nil, errNoESClient
 	}

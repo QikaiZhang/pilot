@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
+
+	"Pilot/internal/observability"
 )
 
 // PolicyAwareRunner 是请求级的策略收口层，与具体框架无关。
@@ -37,7 +39,10 @@ func NewPolicyAwareRunner(inner Runner, policy AgentPolicy) (*PolicyAwareRunner,
 // Run 执行一次请求级受控的 Agent 调用。
 // 超时和取消优先于普通错误：即使内部 Runner 返回了工具错误，只要请求的
 // 生命周期先结束，对外就返回稳定的超时/取消语义，并保留已完成的工具审计。
-func (r *PolicyAwareRunner) Run(ctx context.Context, request AgentRequest) (AgentResponse, error) {
+func (r *PolicyAwareRunner) Run(ctx context.Context, request AgentRequest) (response AgentResponse, err error) {
+	ctx, span := observability.StartSpan(ctx, "agent.run")
+	defer func() { span.End(err) }()
+
 	if r == nil || r.inner == nil {
 		return AgentResponse{}, ErrInvalidRunner
 	}
@@ -47,7 +52,7 @@ func (r *PolicyAwareRunner) Run(ctx context.Context, request AgentRequest) (Agen
 	runCtx, cancel := r.policy.Context(ctx)
 	defer cancel()
 
-	response, err := r.inner.Run(runCtx, request)
+	response, err = r.inner.Run(runCtx, request)
 	if err != nil {
 		return r.resolveFailure(runCtx, response, err)
 	}

@@ -278,3 +278,28 @@
 - `go test ./...` 通过。
 - `go vet ./...` 通过。
 - `internal/observability` 单测覆盖 metrics gather、HTTP status、X-Trace-ID、root span 和 shutdown 幂等。
+
+## Stage 06 P1：业务 Span 与结构化日志关联
+
+### 新增能力
+
+- 新增业务观测门面 `observability.StartSpan`、`Span.End` 和 `LogAttrs`，业务包不直接依赖 exporter 细节。
+- Chat 同步/流式启动、Agent Runner、Memory 读写、健康检查工具、知识检索工具和 ES Retriever 增加子 Span。
+- Redis 回填失败和缓存刷新失败日志改为脱敏结构化日志，并自动带 `trace_id`、`span_id`。
+- 采样比例进入 `ParentBased(TraceIDRatioBased(...))`，并限制在 `[0,1]`。
+
+### 数据流变化
+
+- `http.request -> chat.generate/chat.stream.setup -> memory.* -> agent.run/tool.* -> retriever.elasticsearch`。
+- 子 Span 从上层 request context 派生，取消和 deadline 沿原 context 传播。
+- 业务错误在 Span 结束时记录 Error status；日志只保留安全错误摘要，不记录用户 ID、session ID、prompt 或密钥。
+
+### 当前局限
+
+- 依赖底层 Redis/MySQL/ES 的网络请求暂未分别包裹 client span，当前由 Memory/Retriever/Tool 业务 Span 覆盖。
+- 告警规则、Grafana dashboard、Prometheus/Jaeger Compose 运行验收和 SSE 长生命周期 Span 仍需补充。
+
+### 验收结果
+
+- `go test ./...` 通过。
+- P1 子 Span 和日志门面有单测，未改变业务接口契约。

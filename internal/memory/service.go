@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"Pilot/internal/observability"
 )
 
 var (
@@ -56,7 +58,10 @@ func (s *Service) LoadRecent(
 	userID string,
 	sessionID string,
 	limit int,
-) ([]ChatMessage, error) {
+) (messages []ChatMessage, err error) {
+	ctx, span := observability.StartSpan(ctx, "memory.load_recent")
+	defer func() { span.End(err) }()
+
 	if s == nil || s.history == nil || s.recent == nil {
 		return nil, ErrHistoryStoreRequired
 	}
@@ -69,7 +74,7 @@ func (s *Service) LoadRecent(
 	}
 
 	// 先查近期记忆，命中时不访问持久层。
-	messages, err := s.recent.Get(ctx, userID, sessionID, limit)
+	messages, err = s.recent.Get(ctx, userID, sessionID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get recent memory: %w", err)
 	}
@@ -88,7 +93,9 @@ func (s *Service) LoadRecent(
 
 	// 回填失败不影响已经从 MySQL 读到的结果，但必须留下可观测记录。
 	if err := s.recent.Append(ctx, messages, limit, s.config.RecentTTL); err != nil {
-		slog.WarnContext(ctx, "refresh recent memory failed", "user_id", userID, "session_id", sessionID, "error", err)
+		observability.LogAttrs(ctx, slog.LevelWarn, "refresh recent memory failed",
+			slog.String("error", err.Error()),
+		)
 	}
 	return messages, nil
 }
@@ -96,7 +103,10 @@ func (s *Service) LoadRecent(
 // SaveMessages persists a message batch and then refreshes recent memory.
 // MySQL is the durable source of truth; a Redis failure does not undo a
 // successful durable write.
-func (s *Service) SaveMessages(ctx context.Context, messages []ChatMessage) error {
+func (s *Service) SaveMessages(ctx context.Context, messages []ChatMessage) (err error) {
+	ctx, span := observability.StartSpan(ctx, "memory.save_messages")
+	defer func() { span.End(err) }()
+
 	if s == nil || s.history == nil || s.recent == nil {
 		return ErrHistoryStoreRequired
 	}
@@ -109,10 +119,8 @@ func (s *Service) SaveMessages(ctx context.Context, messages []ChatMessage) erro
 	}
 
 	if err := s.recent.Append(ctx, messages, s.config.RecentLimit, s.config.RecentTTL); err != nil {
-		slog.WarnContext(ctx, "refresh recent memory after save failed",
-			"user_id", messages[0].UserID,
-			"session_id", messages[0].SessionID,
-			"error", err,
+		observability.LogAttrs(ctx, slog.LevelWarn, "refresh recent memory after save failed",
+			slog.String("error", err.Error()),
 		)
 	}
 	return nil

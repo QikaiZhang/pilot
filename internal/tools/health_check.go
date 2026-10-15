@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
+	"Pilot/internal/observability"
 )
 
 // HealthDependency 是健康检查工具使用的最小探针。
@@ -52,7 +54,10 @@ func (h *HealthCheck) Parameters() json.RawMessage {
 
 // Execute 执行所有探针。单个依赖失败会记录为 down，但不会跳过其他依赖。
 // 这使 Agent 能得到完整的部分失败信息，而不是只看到第一个错误。
-func (h *HealthCheck) Execute(ctx context.Context, input json.RawMessage) (any, error) {
+func (h *HealthCheck) Execute(ctx context.Context, input json.RawMessage) (result any, err error) {
+	ctx, span := observability.StartSpan(ctx, "tool.health_check")
+	defer func() { span.End(err) }()
+
 	if h == nil {
 		return nil, errHealthCheckUnavailable
 	}
@@ -63,7 +68,7 @@ func (h *HealthCheck) Execute(ctx context.Context, input json.RawMessage) (any, 
 		}
 	}
 
-	result := HealthCheckResult{
+	checkResult := HealthCheckResult{
 		Healthy:  true,
 		Services: make([]DependencyStatus, 0, len(h.dependencies)),
 	}
@@ -78,11 +83,11 @@ func (h *HealthCheck) Execute(ctx context.Context, input json.RawMessage) (any, 
 			status.Error = err.Error()
 		}
 		if status.Status != "up" {
-			result.Healthy = false
+			checkResult.Healthy = false
 		}
-		result.Services = append(result.Services, status)
+		checkResult.Services = append(checkResult.Services, status)
 	}
-	return result, nil
+	return checkResult, nil
 }
 
 var (

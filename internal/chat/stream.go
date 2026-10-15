@@ -10,6 +10,7 @@ import (
 
 	"Pilot/internal/ai"
 	"Pilot/internal/memory"
+	"Pilot/internal/observability"
 )
 
 // 三层流模型（理解本文件的关键）：
@@ -47,7 +48,10 @@ type serviceStream struct {
 //  3. 调用 s.model.Stream 拿到层1 TokenStream
 //
 // assistant 消息不在这里保存，由 serviceStream 在正常 EOF 时保存，避免保存半截回复。
-func (s *Service) Stream(ctx context.Context, request TurnRequest) (EventStream, error) {
+func (s *Service) Stream(ctx context.Context, request TurnRequest) (stream EventStream, err error) {
+	ctx, span := observability.StartSpan(ctx, "chat.stream.setup")
+	defer func() { span.End(err) }()
+
 	normalized, err := normalizeTurn(request)
 	if err != nil {
 		return nil, err

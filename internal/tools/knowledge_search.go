@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"Pilot/internal/ai"
+	"Pilot/internal/observability"
 )
 
 // Tool 描述一个可被模型/Agen调用并返回结构化结果的外部能力。
@@ -66,7 +67,10 @@ func (k *KnowledgeSearch) Parameters() json.RawMessage {
 
 // Execute 解析入参、执行检索并返回结构化结果。
 // 空 query 或未配置 retriever 时返回可读错误，不泄露底层细节。
-func (k *KnowledgeSearch) Execute(ctx context.Context, input json.RawMessage) (any, error) {
+func (k *KnowledgeSearch) Execute(ctx context.Context, input json.RawMessage) (result any, err error) {
+	ctx, span := observability.StartSpan(ctx, "tool.knowledge_search")
+	defer func() { span.End(err) }()
+
 	if k == nil || k.retriever == nil {
 		return nil, errRetrieverUnavailable
 	}

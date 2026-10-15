@@ -1,8 +1,8 @@
 # Stage 06：Prometheus + OpenTelemetry + Jaeger 可观测性闭环规格
 
-状态：设计完成，应用接线待实施。
+状态：P0/P1 应用接线已完成，P2 Compose 故障演练与告警交付待验收。
 
-这份规格解决当前最明显的断点：`manifest/docker-compose.yml` 已声明 Prometheus 与 Jaeger，但根模块的 `cmd/pilot` 尚未注册 `/metrics`、HTTP 观测中间件、OpenTelemetry SDK 或 OTLP exporter。因此容器可以启动，页面却没有 Pilot 的指标和 Trace。
+这份规格解决当前最明显的断点：`manifest/docker-compose.yml` 已声明 Prometheus 与 Jaeger，P0/P1 已在根模块注册 `/metrics`、HTTP 观测中间件、OpenTelemetry SDK、OTLP exporter 和业务子 Span；P2 仍需用 Compose 做故障演练并补告警。
 
 ## 1. 先把三个概念讲清楚
 
@@ -23,7 +23,7 @@ Jaeger 是分布式链路追踪系统。它接收 OpenTelemetry 导出的 Span�
 | Stage 03 | 同步 Chat、SSE、取消传播、统一错误映射已实现；真实模型取消边界待复核 | “传输层闭环完成，真实供应商流仍需集成验证” |
 | Stage 04 | ES BM25 + kNN + RRF、Mock Embedder、导入/检索基础已实现；版本、召回评估和部分集成仍在补 | “检索基线可运行，质量与生命周期治理继续补齐” |
 | Stage 05 | Eino Agent、`health_check`、`knowledge_search`、手写 Loop 基准、多 Agent 编排和 ToolCall 审计已接通 | “Agent 的策略、工具边界、失败回退和审计已有生产化骨架” |
-| Stage 06 | Compose 已声明 Prometheus/Jaeger；根模块没有 `/metrics`、SDK provider、HTTP middleware、Trace 注入和观测查询闭环 | “观测基础设施在部署文件中，应用侧接线是当前最高优先级缺口” |
+| Stage 06 | P0/P1 已接入 `/metrics`、SDK provider、HTTP root span、业务子 Span 和日志关联；Compose 查询与故障验收待补 | “应用侧观测链路已经接通，下一步用故障演练证明闭环” |
 | Stage 07-09 | 测试交付、面试交付、gRPC 演练规格已有，真实验收/拆分未完成 | “先完成单体可观测闭环，再谈服务拆分” |
 
 证据：`cmd/pilot/main.go` 只注册健康、Chat、Agent 和知识入口；`manifest/docker-compose.yml` 已有两个观测容器；`manifest/prometheus/prometheus.yml` 已尝试抓取 `host.docker.internal:8080`，但当前应用没有对应的 `/metrics`。
@@ -135,7 +135,7 @@ OTEL_EXPORT_TIMEOUT=5s
 
 ## 6. 分阶段实施
 
-### P0：应用能被看见
+### P0：应用能被看见（已完成）
 
 1. 增加 Prometheus registry、`/metrics`、HTTP request counter/histogram/inflight。
 2. 增加 OTel SDK + OTLP gRPC exporter，设置 service name/resource，应用退出时 flush。
@@ -144,14 +144,14 @@ OTEL_EXPORT_TIMEOUT=5s
 
 验收：`curl http://localhost:8080/metrics` 能看到 Pilot 指标；请求一次 Chat 后，Jaeger UI 能按 service=`pilot` 查到完整 Trace。
 
-### P1：故障可定位
+### P1：故障可定位（代码已完成，验收待补）
 
 1. 统一结果标签和错误码映射；补 Tool、Agent、依赖失败计数。
 2. 增加 Prometheus recording rules 和告警：HTTP 5xx、p95、ready 失败、依赖错误、SSE 取消异常增长。
 3. 增加 Grafana dashboard（请求量、错误率、p95、Agent 工具失败、依赖延迟、token 成本）。
 4. 增加故障演练：停 ES、停 Redis、OTLP exporter 不可达、客户端中断 SSE。
 
-### P2：企业化治理
+### P2：企业化治理与集成验收
 
 1. 采样、队列上限、批量导出、shutdown flush deadline，防止观测拖垮业务。
 2. 指标 cardinality review、日志留存与脱敏、Trace 访问控制和数据保留策略。
@@ -197,4 +197,4 @@ docker compose -f manifest/docker-compose.yml start elasticsearch
 
 ## 9. 面试表达边界
 
-当前阶段应说：“我已经把观测闭环拆成指标、Trace、日志三层，Compose 已准备 Prometheus 和 Jaeger，下一步按 P0 接应用 middleware 和 OTLP exporter；当前仓库还不能声称已经从 Jaeger 查到生产 Trace。”完成 P0 后再说：“一次 Chat 请求会从 HTTP root span 串到 Agent、工具和依赖，Prometheus 用于趋势告警，Jaeger 用于单请求定位。”
+当前阶段应说：“我已经把观测闭环拆成指标、Trace、日志三层，应用侧 P0/P1 已接入 `/metrics`、HTTP root span、Agent/Tool/Memory/Retriever 子 Span 和脱敏日志关联；下一步用 Compose 在 Prometheus 和 Jaeger 中验收，并补告警与故障演练。”完成 P2 后再补充真实查询结果和故障恢复证据。

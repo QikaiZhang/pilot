@@ -344,3 +344,28 @@ Middleware 的触发时机是**每次真实工具执行**，不是每轮模型�
 - 配置、测试、`.env.example` 和环境规格保持一致。
 
 验收结论：P0 代码与单测通过，允许进入 P1。
+
+## Stage 06 P1：业务 Span 与结构化日志关联
+
+### 模块拆分理由
+
+- 业务包只调用 `internal/observability` 的小门面，不直接初始化 exporter，避免供应商和生命周期细节渗透到 Chat、Agent、Memory 和 Retriever。
+- Span 以用例和外部调用边界命名，便于 Jaeger 按 operation 定位；用户输入和高基数字段保持在指标/Trace 外。
+
+### 失败路径
+
+- 业务错误通过 named return 在 defer 中记录 Span Error status，然后原有错误映射继续生效。
+- exporter 不可用不会改变业务返回；provider shutdown 负责有限时间 flush。
+- 日志关联只添加有效的 trace/span ID，未采到或无 Span 时不伪造 ID。
+
+### Review 结果
+
+已满足：
+- Chat、Agent、Memory、Tool、Retriever 具有可追踪的业务操作边界。
+- 结构化日志 helper 自动注入 trace/span，缓存失败日志移除 user/session 原值。
+- 采样比例有配置边界和单测。
+
+延期项：
+- 依赖 client span、告警规则、Dashboard 和 Compose 端到端验收，进入 P2 交付。
+
+验收结论：P1 代码与单测通过，进入 P2 集成验收。

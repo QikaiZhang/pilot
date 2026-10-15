@@ -11,6 +11,7 @@ import (
 
 	"Pilot/internal/ai"
 	"Pilot/internal/memory"
+	"Pilot/internal/observability"
 )
 
 var (
@@ -62,7 +63,10 @@ func NewService(memoryStore memoryStore, model ai.ChatModel, config Config) (*Se
 
 // Generate 完成一轮同步对话。
 // 用户消息在调用模型前持久化；只有拿到完整模型响应后才持久化助手消息。
-func (s *Service) Generate(ctx context.Context, request TurnRequest) (ChatResponse, error) {
+func (s *Service) Generate(ctx context.Context, request TurnRequest) (chatResponse ChatResponse, err error) {
+	ctx, span := observability.StartSpan(ctx, "chat.generate")
+	defer func() { span.End(err) }()
+
 	normalized, err := normalizeTurn(request)
 	if err != nil {
 		return ChatResponse{}, err
@@ -82,18 +86,18 @@ func (s *Service) Generate(ctx context.Context, request TurnRequest) (ChatRespon
 		return ChatResponse{}, fmt.Errorf("save user message: %w", err)
 	}
 	//真正调用逻辑
-	response, err := s.model.Generate(ctx, ai.ModelRequest{
+	modelResponse, err := s.model.Generate(ctx, ai.ModelRequest{
 		Messages: buildModelMessages(s.config.SystemPrompt, history, userMessage),
 	})
 	if err != nil {
 		return ChatResponse{}, fmt.Errorf("generate chat response: %w", err)
 	}
-	if response.Message.Role != ai.RoleAssistant || strings.TrimSpace(response.Message.Content) == "" {
+	if modelResponse.Message.Role != ai.RoleAssistant || strings.TrimSpace(modelResponse.Message.Content) == "" {
 		return ChatResponse{}, errors.New("chat model returned an invalid assistant response")
 	}
 
 	//拿到 assitantMessage
-	assistantMessage, err := s.newMemoryMessage(request, memory.RoleAssistant, response.Message.Content)
+	assistantMessage, err := s.newMemoryMessage(request, memory.RoleAssistant, modelResponse.Message.Content)
 	if err != nil {
 		return ChatResponse{}, err
 	}
@@ -101,7 +105,7 @@ func (s *Service) Generate(ctx context.Context, request TurnRequest) (ChatRespon
 		return ChatResponse{}, fmt.Errorf("save assistant message: %w", err)
 	}
 
-	return ChatResponse{Content: response.Message.Content, Usage: response.Usage}, nil
+	return ChatResponse{Content: modelResponse.Message.Content, Usage: modelResponse.Usage}, nil
 }
 
 func (s *Service) newMemoryMessage(request TurnRequest, role memory.Role, content string) (memory.ChatMessage, error) {
