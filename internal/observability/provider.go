@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,8 +63,16 @@ func New(ctx context.Context, cfg Config) (*Provider, error) {
 		return provider, nil
 	}
 
+	endpoint := cfg.OTLPExportEndpoint
+	if !strings.Contains(endpoint, "://") {
+		scheme := "https"
+		if cfg.OTLPInsecure {
+			scheme = "http"
+		}
+		endpoint = scheme + "://" + endpoint
+	}
 	exporterOptions := []otlptracegrpc.Option{
-		otlptracegrpc.WithEndpoint(cfg.OTLPExportEndpoint),
+		otlptracegrpc.WithEndpointURL(endpoint),
 	}
 	if cfg.OTLPInsecure {
 		exporterOptions = append(exporterOptions, otlptracegrpc.WithInsecure())

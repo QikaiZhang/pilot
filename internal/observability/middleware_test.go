@@ -28,6 +28,24 @@ func newTestProvider(t *testing.T) (*Provider, *tracetest.InMemoryExporter) {
 	}, exporter
 }
 
+func TestRequestRouteUsesKnownTemplates(t *testing.T) {
+	for _, test := range []struct {
+		path string
+		want string
+	}{
+		{path: "/api/v1/health/live", want: "GET /api/v1/health/live"},
+		{path: "/api/v1/chat", want: "POST /api/v1/chat"},
+		{path: "/unknown/user-input", want: "unknown"},
+	} {
+		t.Run(test.path, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, test.path, nil)
+			if got := requestRoute(r); got != test.want {
+				t.Fatalf("requestRoute(%q) = %q, want %q", test.path, got, test.want)
+			}
+		})
+	}
+}
+
 func TestMiddlewareRecordsRequestMetricsAndTrace(t *testing.T) {
 	provider, exporter := newTestProvider(t)
 	handler := http.NewServeMux()

@@ -369,3 +369,17 @@ Middleware 的触发时机是**每次真实工具执行**，不是每轮模型�
 - 依赖 client span、告警规则、Dashboard 和 Compose 端到端验收，进入 P2 交付。
 
 验收结论：P1 代码与单测通过，进入 P2 集成验收。
+
+## Stage 06 P2：Compose 集成验收与故障演练
+
+### 验收证据
+
+- `docker compose -f manifest/docker-compose.yml up -d redis mysql elasticsearch prometheus jaeger` 后五个服务均 healthy。
+- `/api/v1/health/live` 与 `/api/v1/health/ready` 均成功；`/metrics` 能看到 HTTP Counter、Histogram 和 Gauge。
+- Prometheus target `pilot` 为 `up`；Jaeger services API 包含 `pilot`。
+- Chat 请求在 Jaeger 中出现 `http.request -> chat.generate -> memory.load_recent/memory.save_messages`。
+- 停止 ES 后 `/api/v1/health/ready` 为 503，恢复后为 200；HTTP 5xx 指标随故障增加。
+
+### 结论
+
+P0/P1 应用观测和 P2 本地 Compose 基础闭环通过。Grafana、告警规则、OTLP exporter 故障和 SSE 长连接专项演练列为后续增量，不阻塞当前 Jaeger/Prometheus 可见性目标。

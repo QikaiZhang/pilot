@@ -64,6 +64,26 @@ func requestRoute(r *http.Request) string {
 	if route := strings.TrimSpace(r.Pattern); route != "" {
 		return route
 	}
+	// Middleware 包裹 ServeMux 时，旧版本 Go 不会在外层请求上填充 Pattern。
+	// 只把已知固定路由映射为模板，未知路径统一归为 unknown，避免把用户输入当标签。
+	switch r.URL.Path {
+	case "/metrics":
+		return "/metrics"
+	case "/api/v1/health/live":
+		return "GET /api/v1/health/live"
+	case "/api/v1/health/ready":
+		return "GET /api/v1/health/ready"
+	case "/api/v1/chat":
+		return "POST /api/v1/chat"
+	case "/api/v1/chat/stream":
+		return "POST /api/v1/chat/stream"
+	case "/api/v1/agent/chat":
+		return "POST /api/v1/agent/chat"
+	case "/api/v1/agent/team/chat":
+		return "POST /api/v1/agent/team/chat"
+	case "/api/v1/knowledge/documents":
+		return "POST /api/v1/knowledge/documents"
+	}
 	return "unknown"
 }
 

@@ -1,8 +1,8 @@
 # Stage 06：Prometheus + OpenTelemetry + Jaeger 可观测性闭环规格
 
-状态：P0/P1 应用接线已完成，P2 Compose 故障演练与告警交付待验收。
+状态：P0/P1 应用接线和 P2 Compose 核心依赖故障演练已完成，告警规则与 Grafana 交付待补。
 
-这份规格解决当前最明显的断点：`manifest/docker-compose.yml` 已声明 Prometheus 与 Jaeger，P0/P1 已在根模块注册 `/metrics`、HTTP 观测中间件、OpenTelemetry SDK、OTLP exporter 和业务子 Span；P2 仍需用 Compose 做故障演练并补告警。
+这份规格解决当前最明显的断点：`manifest/docker-compose.yml` 已声明 Prometheus 与 Jaeger，P0/P1 已在根模块注册 `/metrics`、HTTP 观测中间件、OpenTelemetry SDK、OTLP exporter 和业务子 Span；P2 已用 Compose 完成核心依赖故障演练，告警规则和 Grafana 仍待补。
 
 ## 1. 先把三个概念讲清楚
 

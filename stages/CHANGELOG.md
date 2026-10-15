@@ -303,3 +303,19 @@
 
 - `go test ./...` 通过。
 - P1 子 Span 和日志门面有单测，未改变业务接口契约。
+
+## Stage 06 P2：Compose 集成验收与故障演练
+
+### 验收结果
+
+- Compose 启动 Redis、MySQL、Elasticsearch、Prometheus、Jaeger，五个容器均 healthy。
+- Pilot `/api/v1/health/live` 返回 200，`/api/v1/health/ready` 返回 200。
+- `/metrics` 返回 `pilot_http_requests_total`、`pilot_http_request_duration_seconds`、`pilot_http_inflight_requests`；路由标签使用固定模板或 `/metrics`，未知路径归为 `unknown`。
+- Prometheus target API 显示 `pilot` 为 `up` 且无 scrape error。
+- Jaeger `/api/services` 出现 `pilot`；Chat 请求 Trace 查询到 `http.request`、`chat.generate`、`memory.load_recent` 和 `memory.save_messages`。
+- 停止 Elasticsearch 时 ready 返回 503，指标出现 `status_class="5xx"`；恢复 Elasticsearch 后 ready 回到 200。
+
+### 当前局限
+
+- 未新增 Grafana dashboard 和告警规则；下一阶段可基于已有指标补 SLO recording rules。
+- 本次故障演练覆盖核心依赖可用性，OTLP exporter 不可达和 SSE 长连接取消仍需专门演练。
