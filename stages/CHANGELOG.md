@@ -231,3 +231,22 @@
 ## 后续
 
 - 进入 Stage 05（Agent 与工具）：先设计 Agent 输入/输出契约和停止条件，再把 `knowledge_search` 作为第一个 Eino 工具接入；随后补 Agent Loop 的 S 级手写对照实现。
+
+## Stage 06：可观测性闭环设计
+
+### 新增能力
+
+- 新增 `docs/build/implementation/spec/11-observability-closed-loop.md`，明确 Metrics、Trace、Logs 的职责、Jaeger 用途、低基数标签和故障闭环。
+- 将 Stage 06 拆为 P0（`/metrics`、OTLP exporter、HTTP root span）与 P1（业务 Span、日志关联、故障验收）。
+- 补充阶段导学和面试逐字稿，严格区分 Compose 已声明与应用侧已接线的能力。
+
+### 当前局限
+
+- 当前提交只完成设计与文档，根模块仍未注册 `/metrics` 或 OpenTelemetry provider。
+- Prometheus/Jaeger 容器尚未在本地运行，端到端观测验收留到 P0/P1 实现分支。
+
+### 验收结果
+
+- 文档链接检查通过。
+- `git diff --check` 通过。
+- `go test ./...` 在进入 Stage 06 前通过。

@@ -274,3 +274,51 @@ Middleware 的触发时机是**每次真实工具执行**，不是每轮模型�
 - **mock 模式闭环**：`buildTeamAgent` 在 mock 模式换用 `multiagent.ScriptedModel`（确定性脚本模型，走完全相同的编排路径），`POST /api/v1/agent/team/chat` 本地可端到端验证。注意这与单代理不同：ReAct 需要真实 tool-calling 模型，mock 下仍不组装（503）。
 - 已知边界：`ALLOW_DEGRADED` 配置已加载但主入口启动检查未消费，是既有欠账。
 - HTTP 全链路已补验（2026-09-16，真实 LLM=doubao/ark + Compose 依赖）：happy path（simple 分级单分支 + 引用综合，零降级，端到端 ~17s）、分类 3s 超时回退规则、综合超时降级、引用校验真实拦截（5 次综合 2 次未带编号）、运行中快照写入与终态删除（key 后缀 == 响应 task_id）均实测通过。真实模型观察：doubao 分类与规则基线有分歧（明显故障判 general，安全侧双分支兜住）；检索质量受 mock embedder 限制。详见 `面试经历/02` §1。
+
+## Stage 06：可观测性闭环设计
+
+### 本阶段目标
+
+- 设计并实现从 HTTP 请求到 Prometheus、OpenTelemetry、Jaeger 和结构化日志的可验证闭环。
+- 面试中能清楚区分“Compose 有容器”和“应用已产生指标/Trace”。
+
+### 设计方案
+
+- P0：低基数 HTTP metrics、`/metrics`、OTLP gRPC exporter、HTTP root span、Trace-ID 响应头和 provider shutdown。
+- P1：Chat/SSE、Agent、工具和依赖子 Span，结构化日志关联，故障演练和验收记录。
+- Prometheus 负责趋势、SLO 和告警；Jaeger 负责单次请求的 Span 树定位；日志保存脱敏错误上下文。
+
+### 字段建模评审
+
+本阶段不新增数据库表、业务实体或持久化 DTO；指标名称、标签和值域通过观测契约评审，避免把高基数用户输入写入 Prometheus。
+
+### 数据流链路
+
+1. 入口：HTTP server 接收请求并创建 root span。
+2. 校验：归一化 route、method、status class 和结果标签。
+3. 业务处理：Chat/Agent/Tool/Memory/Retriever 从同一 context 派生子 Span。
+4. 外部调用：Prometheus 拉 `/metrics`；OTLP exporter 将 Span 发往 Jaeger 4317；slog 输出 trace/span 关联字段。
+5. 返回/副作用：响应返回 Trace-ID，指标累加，Span 批量导出，日志脱敏落盘。
+6. 失败路径：exporter 不可用时限时丢弃并 degraded；业务依赖失败时 ready/错误码/Span/指标保持一致。
+
+### 代码分级
+
+| 模块/函数 | 等级 | 原因 | 学习者动作 |
+| --- | --- | --- | --- |
+| HTTP middleware 前后置生命周期 | S | 影响请求状态、并发计数、panic/错误收口和资源回收 | 按 P0 设计实现并补边界测试 |
+| 指标名称与低基数标签 | A | 属于项目观测契约和维护边界 | Review 命名、标签和值域 |
+| OTLP/Prometheus 装配 | B | 基础设施接线样板 | 读懂配置、启动和 shutdown |
+| Jaeger 故障验收 | S | 证明跨层上下文和错误状态真实连通 | 执行停依赖/恢复演练 |
+
+### 设计模式取舍
+
+- 候选模式：Provider/Facade。
+- 是否采用：采用一个小型 `internal/observability` provider 作为组合根门面，不在业务包散落 exporter 细节。
+- 收益：统一初始化、关闭、脱敏和失败降级。
+- 代价：需要明确 context 和全局 provider 生命周期，不能随意在测试中污染全局。
+- 不采用原因：暂不引入复杂 Collector 或自研事件总线，避免超过当前单体范围。
+
+### 当前局限
+
+- 设计提交前应用没有 `/metrics`、OTLP exporter 和 Jaeger Trace。
+- 真实 Compose 观测链路尚未执行。

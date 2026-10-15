@@ -14,6 +14,7 @@
 | [08-agent.md](08-agent.md) | Agent Runner、工具调用协议、Registry 和失败策略 |
 | [09-agent-rag-production.md](09-agent-rag-production.md) | Agent、RAG、策略、循环和审计的统一生产化设计 |
 | [10-rag-ingestion-evaluation.md](10-rag-ingestion-evaluation.md) | 知识文档导入、版本、性能风险和召回评估 |
+| [11-observability-closed-loop.md](11-observability-closed-loop.md) | Prometheus、OpenTelemetry、Jaeger、日志与故障闭环 |
 
 ## 使用规则
 

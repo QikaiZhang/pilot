@@ -1,5 +1,7 @@
 # Stage 06：中间件与可观测性
 
+施工总规格见 [11-observability-closed-loop.md](../implementation/spec/11-observability-closed-loop.md)。当前状态：Compose 已声明 Prometheus/Jaeger，应用侧 `/metrics`、OTLP exporter、HTTP middleware 和 Jaeger 查询闭环待实施。
+
 ## 目标
 
 通过一个请求拦截器理解中间件开发模式：统一处理横切关注点，业务代码只关注业务。

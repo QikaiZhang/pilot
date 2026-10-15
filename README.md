@@ -2,7 +2,7 @@
 
 Pilot 是一个面向运维排障的 Go AI 助手。它的目标是接收用户的问题，结合会话上下文、知识库和可观测性数据生成可追溯的排障建议。
 
-> 当前状态：Stage 01-03 已完成；Stage 04 已完成 ES 混合检索基础，正在补知识文档导入、版本管理和召回评估；Stage 05 已接通 Eino Agent、health_check、knowledge_search、手写 Loop 基准和 ToolCall 审计。Prometheus/Trace/Log 观测安排在 Agent/RAG 业务事件稳定后接入。
+> 当前状态：Stage 01-03 的核心代码已完成，但 S 级手写、真实 Compose 和部分并发/取消验收仍有待办；Stage 04 已完成 ES 混合检索基础，正在补知识文档导入、版本管理和召回评估；Stage 05 已接通 Eino Agent、health_check、knowledge_search、手写 Loop 基准、多 Agent 编排和 ToolCall 审计。Stage 06 的 Prometheus/Trace/Log 施工规格已完成，但应用侧 `/metrics`、OpenTelemetry exporter 和 Jaeger 查询闭环尚未接入。
 
 ## 系统全览
 
