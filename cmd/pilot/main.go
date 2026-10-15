@@ -15,6 +15,7 @@ import (
 
 	"Pilot/internal/deps"
 	"Pilot/internal/handler"
+	"Pilot/internal/observability"
 	"Pilot/pkg/configutil"
 	"Pilot/pkg/envloader"
 )
@@ -63,6 +64,38 @@ func run() error {
 		return fmt.Errorf("startup dependency check failed: %s", strings.Join(failed, "; "))
 	}
 
+	obs, err := observability.New(context.Background(), observability.Config{
+		Enabled:            cfg.OTEL.Enabled,
+		ServiceName:        cfg.OTEL.ServiceName,
+		Environment:        cfg.OTEL.Environment,
+		OTLPExportEndpoint: cfg.OTEL.OTLPExportEndpoint,
+		OTLPInsecure:       cfg.OTEL.OTLPInsecure,
+		ExportTimeout:      cfg.OTEL.ExportTimeout,
+		SampleRatio:        cfg.OTEL.SampleRatio,
+	})
+	if err != nil {
+		if !cfg.App.AllowDegraded {
+			return fmt.Errorf("initialize observability: %w", err)
+		}
+		slog.Warn("observability disabled after initialization failure", "error", err)
+		obs, err = observability.New(context.Background(), observability.Config{
+			ServiceName: cfg.OTEL.ServiceName,
+			Environment: cfg.OTEL.Environment,
+		})
+		if err != nil {
+			return fmt.Errorf("initialize degraded observability: %w", err)
+		}
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := obs.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("flush observability resources failed", "error", err)
+		}
+	}()
+
+	slog.Info("observability configured", "enabled", cfg.OTEL.Enabled, "service", cfg.OTEL.ServiceName)
+
 	runtimeCtx, cancelRuntime := context.WithTimeout(context.Background(), startupCheckTimeout)
 	rt, err := buildRuntime(runtimeCtx, cfg)
 	cancelRuntime()
@@ -76,6 +109,7 @@ func run() error {
 	}()
 
 	mux := http.NewServeMux()
+	mux.Handle("GET /metrics", obs.MetricsHandler())
 	health := handler.NewHealthHandler(checkers)
 	mux.HandleFunc("GET /api/v1/health/live", health.Live)
 	mux.HandleFunc("GET /api/v1/health/ready", health.Ready)
@@ -92,7 +126,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              cfg.App.Addr,
-		Handler:           mux,
+		Handler:           obs.Middleware(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -77,7 +77,13 @@ type RateLimitConfig struct {
 
 // OTELConfig 是可观测性上报相关配置。
 type OTELConfig struct {
+	Enabled            bool
+	ServiceName        string
+	Environment        string
 	OTLPExportEndpoint string
+	OTLPInsecure       bool
+	ExportTimeout      time.Duration
+	SampleRatio        float64
 }
 
 // Load 从进程环境变量构建 Config。解析失败时回退到默认值，
@@ -125,7 +131,13 @@ func Load() Config {
 			Window:   getDuration("RATE_LIMIT_WINDOW", time.Minute),
 		},
 		OTEL: OTELConfig{
+			Enabled:            getBool("OBS_ENABLED", true),
+			ServiceName:        getString("OTEL_SERVICE_NAME", "pilot"),
+			Environment:        getString("OTEL_RESOURCE_ENVIRONMENT", getString("APP_ENV", "local")),
 			OTLPExportEndpoint: getString("OTEL_EXPORTER_OTLP_ENDPOINT", "127.0.0.1:4317"),
+			OTLPInsecure:       getBool("OTEL_EXPORTER_OTLP_INSECURE", true),
+			ExportTimeout:      getDuration("OTEL_EXPORT_TIMEOUT", 5*time.Second),
+			SampleRatio:        float64(getFloat("OTEL_TRACES_SAMPLER_ARG", 1)),
 		},
 	}
 }

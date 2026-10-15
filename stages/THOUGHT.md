@@ -322,3 +322,25 @@ Middleware 的触发时机是**每次真实工具执行**，不是每轮模型�
 
 - 设计提交前应用没有 `/metrics`、OTLP exporter 和 Jaeger Trace。
 - 真实 Compose 观测链路尚未执行。
+
+## Stage 06 P0：Metrics、HTTP root span 与 OTLP 接线
+
+### 数据流链路
+
+1. HTTP middleware 从请求头提取 W3C Trace Context。
+2. 使用 route pattern 而不是实际 URL 作为 metrics 标签，避免用户输入造成高基数。
+3. responseWriter 记录首个状态码并保留 `http.Flusher`，保证 SSE 不因观测包装器失效。
+4. root span 结束时写入 route/status，HTTP Counter、Histogram、Gauge 同时更新。
+5. provider shutdown 负责批量导出 flush，失败不反向阻断已完成的业务响应。
+
+### Review 结果
+
+必须修改：
+- P1 需要补全业务子 Span、日志关联和故障验收。
+
+已满足：
+- 独立 metrics registry，测试不污染默认全局注册表。
+- exporter 和 HTTP server 生命周期由组合根管理。
+- 配置、测试、`.env.example` 和环境规格保持一致。
+
+验收结论：P0 代码与单测通过，允许进入 P1。

@@ -1,6 +1,6 @@
 # Stage 06：中间件与可观测性
 
-施工总规格见 [11-observability-closed-loop.md](../implementation/spec/11-observability-closed-loop.md)。当前状态：Compose 已声明 Prometheus/Jaeger，应用侧 `/metrics`、OTLP exporter、HTTP middleware 和 Jaeger 查询闭环待实施。
+施工总规格见 [11-observability-closed-loop.md](../implementation/spec/11-observability-closed-loop.md)。当前状态：P0 已接入 `/metrics`、HTTP root span、OTLP exporter 和 Trace-ID 响应头；业务 Span、结构化日志关联、告警和 Jaeger 故障验收属于 P1。
 
 ## 目标
 

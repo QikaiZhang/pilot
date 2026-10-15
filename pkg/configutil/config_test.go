@@ -14,7 +14,8 @@ var allKeys = []string{
 	"LLM_TEMPERATURE", "LLM_MAX_TOKENS", "LLM_TIMEOUT",
 	"EMBEDDING_MODE", "EMBEDDING_DIM",
 	"RATE_LIMIT_REQUESTS", "RATE_LIMIT_WINDOW",
-	"OTEL_EXPORTER_OTLP_ENDPOINT",
+	"OBS_ENABLED", "OTEL_SERVICE_NAME", "OTEL_RESOURCE_ENVIRONMENT",
+	"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_INSECURE", "OTEL_EXPORT_TIMEOUT", "OTEL_TRACES_SAMPLER_ARG",
 }
 
 func clearAll(t *testing.T) {
@@ -67,6 +68,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.OTEL.OTLPExportEndpoint != "127.0.0.1:4317" {
 		t.Errorf("OTEL endpoint = %q, want 127.0.0.1:4317", cfg.OTEL.OTLPExportEndpoint)
 	}
+	if !cfg.OTEL.Enabled || cfg.OTEL.ServiceName != "pilot" || cfg.OTEL.Environment != "local" {
+		t.Errorf("OTEL defaults = %+v", cfg.OTEL)
+	}
+	if !cfg.OTEL.OTLPInsecure || cfg.OTEL.ExportTimeout != 5*time.Second || cfg.OTEL.SampleRatio != 1 {
+		t.Errorf("OTEL transport defaults = %+v", cfg.OTEL)
+	}
 }
 
 func TestLoadFromEnv(t *testing.T) {
@@ -79,6 +86,12 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("LLM_TEMPERATURE", "0.7")
 	t.Setenv("LLM_MAX_TOKENS", "128")
 	t.Setenv("LLM_TIMEOUT", "30s")
+	t.Setenv("OBS_ENABLED", "false")
+	t.Setenv("OTEL_SERVICE_NAME", "pilot-test")
+	t.Setenv("OTEL_RESOURCE_ENVIRONMENT", "test")
+	t.Setenv("OTEL_EXPORTER_OTLP_INSECURE", "false")
+	t.Setenv("OTEL_EXPORT_TIMEOUT", "2s")
+	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "0.25")
 
 	cfg := Load()
 	if cfg.App.Addr != ":9999" {
@@ -98,5 +111,11 @@ func TestLoadFromEnv(t *testing.T) {
 	}
 	if cfg.LLM.Temperature != 0.7 || cfg.LLM.MaxTokens != 128 || cfg.LLM.Timeout != time.Minute/2 {
 		t.Errorf("LLM env = %+v, want temp 0.7, tokens 128, timeout 30s", cfg.LLM)
+	}
+	if cfg.OTEL.Enabled || cfg.OTEL.ServiceName != "pilot-test" || cfg.OTEL.Environment != "test" || cfg.OTEL.OTLPInsecure {
+		t.Errorf("OTEL env = %+v", cfg.OTEL)
+	}
+	if cfg.OTEL.ExportTimeout != 2*time.Second || cfg.OTEL.SampleRatio != 0.25 {
+		t.Errorf("OTEL transport env = %+v", cfg.OTEL)
 	}
 }

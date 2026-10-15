@@ -250,3 +250,31 @@
 - 文档链接检查通过。
 - `git diff --check` 通过。
 - `go test ./...` 在进入 Stage 06 前通过。
+
+## Stage 06 P0：Metrics、HTTP root span 与 OTLP 接线
+
+### 新增能力
+
+- 新增 `internal/observability` provider，使用独立 Prometheus registry 和 OpenTelemetry OTLP gRPC exporter。
+- 新增 HTTP middleware：创建 `http.request` root span、记录低基数请求量/延迟/inflight 指标、返回 `X-Trace-ID`，并保留 SSE `Flush` 能力。
+- `cmd/pilot` 注册 `GET /metrics`，服务退出时在 deadline 内 flush Trace exporter。
+- 配置新增 `OBS_ENABLED`、service/environment、OTLP insecure、export timeout 和采样比例字段。
+
+### 数据流变化
+
+- 入口：HTTP request -> TraceContext 提取 -> root span。
+- 处理：ServeMux 业务 Handler -> responseWriter 捕获状态码和 Flush。
+- 外部调用：Prometheus 拉取独立 registry；OTLP exporter 异步发送 Span 到 Jaeger 4317。
+- 返回/副作用：响应附 `X-Trace-ID`；请求指标累加；退出时 shutdown provider。
+
+### 当前局限
+
+- Chat/Agent/Tool/Redis/MySQL/ES 业务子 Span和结构化日志 trace/span 关联留到 P1。
+- `SampleRatio` 已进入配置模型，采样器细化和 `/metrics` trace 噪声控制留到 P1。
+- 本地尚未完成 Compose Prometheus target 与 Jaeger UI 的端到端验收。
+
+### 验收结果
+
+- `go test ./...` 通过。
+- `go vet ./...` 通过。
+- `internal/observability` 单测覆盖 metrics gather、HTTP status、X-Trace-ID、root span 和 shutdown 幂等。
