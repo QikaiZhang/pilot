@@ -15,7 +15,7 @@
 | [04 ES 与 RAG](stage-04-es-rag.md) | 文档切分、向量、混合检索 | 检索过滤/排序和召回合并 | 能解释 ES 与 MySQL 的边界 |
 | [05 Agent 与工具](stage-05-agent-tools.md) | Eino、ReAct、工具调用 | 工具路由和失败回退 | 一条工具链可观测、可重试 |
 | [06 中间件与可观测性](stage-06-observability.md) | Metrics、Trace、Log | 请求拦截器的前后置逻辑 | Trace-ID、耗时和错误可定位 |
-| [07 测试与交付](stage-07-test-delivery.md) | 集成测试、Compose、重构 | 关键链路测试和故障演练 | 可重复启动、测试和排障 |
+| [07 测试与交付](stage-07-test-delivery.md) | 集成测试、Compose、观测证据查询、重构 | 关键链路测试和故障演练 | 可重复启动、真实证据查询和排障 |
 | [08 面试交付](stage-08-interview.md) | 设计文档和口述 | 2 分钟项目介绍、深挖题 | 能讲清取舍、限制和优化 |
 | [09 gRPC/微服务](stage-09-grpc-microservice.md) | 跨进程知识检索 | protobuf、client/server、超时、Trace 透传 | HTTP -> gRPC -> ES 链路可重复运行 |
 

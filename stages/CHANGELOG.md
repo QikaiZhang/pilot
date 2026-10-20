@@ -335,3 +335,23 @@
 - `go test ./...`、`go vet ./...` 通过。
 - Prometheus rules 使用低基数 Pilot 指标；Grafana panel 覆盖请求量、5xx 比例、p95 和 inflight。
 - SSE 生命周期逻辑通过现有 Chat/Handler 测试，待 Grafana 镜像拉取完成后补容器健康检查。
+
+## Stage 07：观测证据查询层性能与可用性规格
+
+### 新增能力
+
+- 新增 `docs/build/implementation/spec/12-observability-evidence-query.md`，定义 Agent 查询 Prometheus、Jaeger 和日志的统一 EvidenceSet 契约。
+- 将性能问题写成可执行预算：总 deadline、单源 timeout、并发上限、结果条数、响应字节和工具调用次数。
+- 将可用性问题写成部分成功、数据源隔离、熔断、缓存、singleflight 和恢复确认规则。
+- 增加实时性/新鲜度模型，区分 fetched_at、观测时间、stale、unknown、partial 和 no_data。
+- 记录 `源代码/` 中已有 DataCollector、Prometheus/Jaeger client 和 observability tools 只能作为参考骨架，不能直接视为生产实现。
+
+### 当前局限
+
+- 根模块 Agent 当前仍只有 `health_check` 和 `knowledge_search`，尚未接入受控实时证据查询。
+- 本阶段只完成设计和验收门槛，不声称 Agent 已经可以查询 Prometheus 或 Jaeger。
+
+### 验收结果
+
+- 新 spec 已加入 implementation/spec 索引。
+- 文档相对链接和 `git diff --check` 待提交前校验。

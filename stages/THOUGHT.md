@@ -399,3 +399,39 @@ P0/P1 应用观测和 P2 本地 Compose 基础闭环通过。Grafana、告警规
 - Grafana 使用本地默认密码仅供开发环境，生产必须通过 secret 注入并启用访问控制。
 
 验收结论：P3 代码和配置完成，Grafana 容器健康检查属于镜像拉取后的集成验证。
+
+## Stage 07：观测证据查询层性能与可用性规格
+
+### 本阶段目标
+
+- 把“Agent 能查监控”从概念拆成权限、性能、可用性、实时性和证据可信度五个工程边界。
+- 让一次排障能在 Prometheus、Jaeger、日志之间形成可控、可解释的证据链。
+
+### 设计方案
+
+- 业务层只依赖 Evidence Query Layer，不直接拼 PromQL、Jaeger URL 或日志 DSL。
+- Prometheus、Jaeger、Logs 之间无依赖时并行查询；每个数据源独立 timeout，失败只形成 limitation。
+- 所有结果包装为 EvidenceSet，携带 source、observed_at、retrieved_at、freshness、partial 和 authorization_scope。
+- 缓存和 singleflight 绑定授权范围；故障恢复确认绕过普通缓存，避免旧证据误判恢复。
+
+### 代码分级
+
+| 模块/函数 | 等级 | 原因 | 学习者动作 |
+| --- | --- | --- | --- |
+| EvidenceSet 与 freshness 状态 | A | 是跨数据源业务契约，决定模型能否正确表达不确定性 | Review 字段、状态和值域 |
+| 查询预算与并发 semaphore | S | 影响下游保护、请求取消和资源安全 | 独立实现并补并发/超时测试 |
+| PromQL/Trace 查询模板 | S | 影响权限、成本、数据泄露和查询正确性 | 先实现固定 signal，再补拒绝测试 |
+| Prometheus/Jaeger client adapter | B | 外部协议适配和解析 | 读懂 timeout、limit、错误映射 |
+| 证据缓存与 singleflight | S | 影响实时性、跨主体隔离和并发放大 | 补缓存键、失效和权限隔离测试 |
+
+### 关键复盘
+
+- 健康检查是连通性证据，不能替代指标、Trace 和日志证据。
+- Prometheus 查询成功不等于数据代表当前状态，必须带样本/抓取时效。
+- Jaeger 没有搜到 Trace 不等于没有故障，可能是采样、导出延迟、权限或时间窗问题。
+- 任务快照的生命周期和运行证据的 freshness 生命周期必须分开。
+- 观测查询属于 Agent 的可选能力，监控后端故障不能阻断普通 Chat 和健康接口。
+
+### 当前局限
+
+- 根模块暂未实现 Evidence Query Layer；本阶段 spec 明确了 P0-P3 的实施顺序和 Definition of Done。

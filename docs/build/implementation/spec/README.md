@@ -15,6 +15,7 @@
 | [09-agent-rag-production.md](09-agent-rag-production.md) | Agent、RAG、策略、循环和审计的统一生产化设计 |
 | [10-rag-ingestion-evaluation.md](10-rag-ingestion-evaluation.md) | 知识文档导入、版本、性能风险和召回评估 |
 | [11-observability-closed-loop.md](11-observability-closed-loop.md) | Prometheus、OpenTelemetry、Jaeger、日志与故障闭环 |
+| [12-observability-evidence-query.md](12-observability-evidence-query.md) | Agent 受控查询 Prometheus、Jaeger、日志的性能、可用性和新鲜度规格 |
 
 ## 使用规则
 
